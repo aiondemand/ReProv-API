@@ -1,6 +1,15 @@
 from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import relationship
-from .session import Base
+from .init_db import Base
+from pydantic import BaseModel
+
+class ContainerModel(BaseModel):
+    url: str
+    tag: str = 'latest'
+    name: str = None
+    dockerfile: str = None
+    class Config:
+        orm_mode = True
 
 class Container(Base):
     __tablename__ = "container"
