@@ -5,24 +5,10 @@ from pydantic import BaseModel, ValidationError, root_validator
 
 
 class ContainerModel(BaseModel):
+    name: str
     url: str = None
     tag: str = None
-    name: str = None
-    dockerfile: str = None
-
-    @root_validator(pre=True)
-    def check_exclusive_fields(cls, values):
-        url = values.get("url")
-        tag = values.get("tag")
-        dockerfile = values.get("dockerfile")
-
-        if url is not None and tag is not None and dockerfile is not None:
-            raise ValueError("Either 'url' and 'tag' or 'dockerfile' should be provided, not both.")
-
-        if (url is None or tag is None) and dockerfile is None:
-            raise ValueError("Either 'url' and 'tag' or 'dockerfile' should be provided.")
-
-        return values
+    
     class Config:
         orm_mode = True
 

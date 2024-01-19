@@ -1,8 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status,File, UploadFile, Form
+from typing import Optional
 from db.container import Container, ContainerModel
 from db.init_db  import session
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+import tempfile
+import os
+import docker
 
 router = APIRouter()
 
@@ -23,10 +27,40 @@ async def get_container_by_id(container_id: int):
 
     return container
 
+def build_docker_image(dockerfile_content: str) -> str:
+    client = docker.from_env()
+
+    # Create a temporary file for the Dockerfile content
+    with tempfile.NamedTemporaryFile(mode="w", delete=False) as temp_dockerfile:
+        temp_dockerfile.write(dockerfile_content)
+
+    try:
+        # Build Docker image
+        image, logs = client.images.build(path=".", dockerfile=temp_dockerfile.name, tag="my_image")
+        print(image)
+    finally:
+        # Cleanup: Remove the temporary Dockerfile
+        temp_dockerfile.close()
+        os.remove(temp_dockerfile.name)
+
+    # Return image URL
+    return "my_image"
+
 
 @router.post("/upload/")
-async def upload_container(container: ContainerModel):    
-    try:
+async def upload_container(container: ContainerModel = Depends(), dockerfile: UploadFile = File(None)):    
+    try:    
+        if container.url and container.name and dockerfile:
+            session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail="You must either provide url:tag OR dockerfile but not both"
+            ) 
+        if dockerfile and not (container.url or container.tag):
+            file_content = dockerfile.file.read().decode("utf-8")
+
+            build_docker_image(file_content)
+     
         db_container = Container(**container.dict())
         session.add(db_container)
         session.commit()
