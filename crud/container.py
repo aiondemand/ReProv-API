@@ -37,7 +37,6 @@ def build_docker_image(dockerfile_content: str) -> str:
     try:
         # Build Docker image
         image, logs = client.images.build(path=".", dockerfile=temp_dockerfile.name, tag="my_image")
-        print(image)
     finally:
         # Cleanup: Remove the temporary Dockerfile
         temp_dockerfile.close()
@@ -49,16 +48,21 @@ def build_docker_image(dockerfile_content: str) -> str:
 
 @router.post("/upload/")
 async def upload_container(container: ContainerModel = Depends(), dockerfile: UploadFile = File(None)):    
-    try:    
+    try:
+        if (not container.url or not container.tag) and not dockerfile:
+            session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail="You must provide url:tag OR Dockerfile"
+            )     
         if container.url and container.name and dockerfile:
             session.rollback()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, 
-                detail="You must either provide url:tag OR dockerfile but not both"
+                detail="You must either provide url:tag OR Dockerfile but not both"
             ) 
         if dockerfile and not (container.url or container.tag):
             file_content = dockerfile.file.read().decode("utf-8")
-
             build_docker_image(file_content)
      
         db_container = Container(**container.dict())
