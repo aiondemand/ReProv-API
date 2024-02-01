@@ -1,8 +1,10 @@
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, status, Depends
 from db.workflow import Workflow, WorkflowModel
+from db.user import User
 from db.init_db  import session
 from sqlalchemy.exc import IntegrityError
+from reana_client.api import client
 
 router = APIRouter()
 
@@ -42,6 +44,28 @@ async def register_workflow(workflow: WorkflowModel = Depends(), spec_file: Uplo
             detail="Integrity error. Duplicate URL and tag combination."
         ) from e
         
+
+
+@router.post("/execute/")
+async def execute_workflow(user_id: str, workflow_id: int):
+    workflow = session.query(Workflow).filter(Workflow.id == workflow_id).first()
+    if workflow is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Workflow with ID {workflow_id} not found",
+    )
+
+    user = session.query(User).filter(User.id == user_id).first()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User with ID {user_id} not found",
+    )
+
+
+    return {}
+
+
 
 @router.put("/update/")
 async def update_workflow(workflow_id: int, updated_workflow: WorkflowModel):
