@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+
+from fastapi import APIRouter, UploadFile, File, HTTPException, status, Depends
 from db.workflow import Workflow, WorkflowModel
 from db.init_db  import session
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
 
 router = APIRouter()
 
@@ -10,6 +10,7 @@ router = APIRouter()
 async def get_all_workflows(skip: int = 0, limit: int = 10):
     workflows = session.query(Workflow).offset(skip).limit(limit).all()
     return workflows
+
 
 @router.get("/{workflow_id}", response_model=WorkflowModel)
 async def get_workflow_by_id(workflow_id: int):
@@ -24,14 +25,15 @@ async def get_workflow_by_id(workflow_id: int):
     return workflow
 
 
-@router.post("/upload/")
-async def upload_workflow(workflow: WorkflowModel):    
+@router.post("/register/")
+async def register_workflow(workflow: WorkflowModel = Depends(), spec_file: UploadFile = File(...), input_file: UploadFile = File(None)):
     try:
-        db_workflow = Workflow(**workflow.dict())
+        db_workflow = Workflow(name=workflow.name, version=workflow.version, spec_file=spec_file.file.read(), input_file = input_file.file.read() if input_file else None)
         session.add(db_workflow)
         session.commit()
+        session.refresh(db_workflow)
         return {
-                    "Workflow": WorkflowModel.from_orm(db_workflow)
+                    "New Workflow registered with ID": db_workflow.id
                 }
     except IntegrityError as e:
         session.rollback()
