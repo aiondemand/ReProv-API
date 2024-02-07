@@ -37,16 +37,28 @@ async def get_workflow_by_id(workflow_id: int):
 @router.post("/register/")
 async def register_workflow(workflow: WorkflowModel = Depends(), spec_file: UploadFile = File(...), input_file: UploadFile = File(None)):
     spec_file_content = spec_file.file.read()
-    input_file_content = input_file.file.read() if input_file else None
     with tempfile.NamedTemporaryFile(dir=os.getcwd(), suffix='.cwl',delete=False) as spec_temp_file:
         spec_temp_file.write(spec_file_content)
 
+    inputs = {"parameters":{}}
+    input_file_content = input_file.file.read() if input_file else None
+    if input_file:
+        with tempfile.NamedTemporaryFile(dir=os.getcwd(), suffix='.yaml',delete=False) as input_temp_file:
+            input_temp_file.write(input_file_content)
+        with open(os.path.join(os.getcwd(),input_temp_file.name)) as f:
+            for line in f:
+                k, v = line.strip().split(": ")
+                inputs["parameters"][k] = v
+
+
     try:
        
+        print(inputs)
         reana_workflow = client.create_workflow_from_json(
                 name=workflow.name,
                 access_token=os.environ['REANA_ACCESS_TOKEN'],
                 workflow_file=os.path.join(os.getcwd(),spec_temp_file.name),
+                parameters = inputs if inputs["parameters"] != {} else None,
                 workflow_engine='cwl'
             )
         
