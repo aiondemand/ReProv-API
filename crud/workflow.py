@@ -9,15 +9,15 @@ import tempfile
 
 router = APIRouter()
 
-@router.get("/", response_model=list[WorkflowModel])
+@router.get("/")
 async def get_all_workflows(skip: int = 0, limit: int = 10):
-    workflows = session.query(Workflow).offset(skip).limit(limit).all()
+    workflows = session.query(Workflow.id,Workflow.name,Workflow.version,Workflow.reana_id,Workflow.reana_name).offset(skip).limit(limit).all()
     return workflows
 
 
-@router.get("/{workflow_id}", response_model=WorkflowModel)
+@router.get("/{workflow_id}")
 async def get_workflow_by_id(workflow_id: int):
-    workflow = session.query(Workflow).filter(Workflow.id == workflow_id).first()
+    workflow = session.query(Workflow.id,Workflow.name,Workflow.version,Workflow.reana_id,Workflow.reana_name).filter(Workflow.id == workflow_id).first()
 
     if workflow is None:
         raise HTTPException(
