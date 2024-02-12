@@ -3,7 +3,9 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, status, Depends,
 from db.workflow import Workflow, WorkflowModel
 from db.user import User
 from db.init_db  import session
-from sqlalchemy.exc import IntegrityError
+# from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, InvalidRequestError, DBAPIError
+
 from reana_client.api import client
 import tempfile
 
@@ -16,13 +18,13 @@ async def get_all_workflows(skip: int = 0, limit: int = 10):
 
 
 @router.get("/{workflow_id}")
-async def get_workflow_by_id(workflow_id: int):
-    workflow = session.query(Workflow.id,Workflow.name,Workflow.version,Workflow.reana_id,Workflow.reana_name).filter(Workflow.id == workflow_id).first()
+async def get_workflow_by_id(id: int):
+    workflow = session.query(Workflow.id,Workflow.name,Workflow.version,Workflow.reana_id,Workflow.reana_name).filter(Workflow.id == id).first()
 
     if workflow is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Workflow with ID {workflow_id} not found",
+            detail=f"Workflow with ID {id} not found",
         )
 
     return workflow
@@ -136,35 +138,45 @@ async def execute_workflow(name:str = None, version: str = None):
         }
 
 @router.put("/update/")
-async def update_workflow(workflow_id: int, updated_workflow: WorkflowModel):
-    existing_workflow = session.query(Workflow).filter(Workflow.id == workflow_id).first()
+async def update_workflow(id: int, name:str = None, version: str = None, spec_file: UploadFile = File(None), input_file: UploadFile = File(None)):
 
-    if existing_workflow is None:
-        raise HTTPException(
+    fields_to_update = {
+        k: v for k, v in {
+            'name': name,
+            'version': version,
+            'spec_file': spec_file.file.read() if spec_file else None,
+            'input_file': input_file.file.read() if input_file else None
+        }.items() if v is not None}
+
+    wf_updated = session.query(Workflow).filter(Workflow.id == id).update(fields_to_update)
+    if wf_updated == 0:
+         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Workflow with ID {workflow_id} not found",
+            detail=f"Could not update workflow with ID: {id}"
         )
 
-    for key, value in updated_workflow.dict().items():
-        setattr(existing_workflow, key, value)
-
     session.commit()
-    session.refresh(existing_workflow)
-    return existing_workflow
+    return {
+            "Workflow Updated":{
+            "ID": id,
+            "Name": name,
+            "Version": version
+       } 
+    }
  
 
 
-@router.delete("/{workflow_id}", response_model=dict)
-async def delete_workflow(workflow_id: int):
-    workflow = session.query(Workflow).filter(Workflow.id == workflow_id).first()
+@router.delete("/{id}", response_model=dict)
+async def delete_workflow(id: int):
+    workflow = session.query(Workflow).filter(Workflow.id == id).first()
 
     if workflow is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Workflow with ID {workflow_id} not found",
+            detail=f"Workflow with ID {id} not found",
         )
 
     session.delete(workflow)
     session.commit()
 
-    return {"message": f"Workflow with ID {workflow_id} has been deleted"}
+    return {"message": f"Workflow with ID {id} has been deleted"}
