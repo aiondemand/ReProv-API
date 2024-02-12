@@ -6,7 +6,6 @@ from crud.container import router as container_router
 from crud.workflow import router as workflow_router
 from crud.user import router as user_router
 
-
 def create_tables():
     Base.metadata.create_all(bind=engine)
         
