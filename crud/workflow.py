@@ -9,12 +9,6 @@ import tempfile
 
 router = APIRouter()
 
-@router.get("/test")
-async def test():
-    out = client.ping(access_token=os.environ['REANA_ACCESS_TOKEN'])
-    print(out)
-
-
 @router.get("/", response_model=list[WorkflowModel])
 async def get_all_workflows(skip: int = 0, limit: int = 10):
     workflows = session.query(Workflow).offset(skip).limit(limit).all()
