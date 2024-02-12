@@ -166,14 +166,26 @@ async def update_workflow(id: int, name:str = None, version: str = None, spec_fi
  
 
 
+
 @router.delete("/{id}", response_model=dict)
 async def delete_workflow(id: int):
     workflow = session.query(Workflow).filter(Workflow.id == id).first()
-
     if workflow is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Workflow with ID {id} not found",
+        )
+    try:
+        client.delete_workflow(
+            workflow=workflow.reana_id,
+            access_token=os.environ['REANA_ACCESS_TOKEN'],
+            all_runs = True,
+            workspace=True
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Problem while deleting REANA workflow: " + str(e),
         )
 
     session.delete(workflow)
