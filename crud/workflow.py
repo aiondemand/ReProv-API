@@ -17,7 +17,7 @@ async def get_all_workflows(skip: int = 0, limit: int = 10):
     return workflows
 
 
-@router.get("/{workflow_id}")
+@router.get("/{id}")
 async def get_workflow_by_id(id: int):
     workflow = session.query(Workflow.id,Workflow.name,Workflow.version,Workflow.reana_id,Workflow.reana_name).filter(Workflow.id == id).first()
 
@@ -56,10 +56,7 @@ async def register_workflow(workflow: WorkflowModel = Depends(), spec_file: Uplo
  
 
 
-@router.post(
-        "/execute/",
-)
-
+@router.post("/execute/")
 async def execute_workflow(name:str = None, version: str = None):
     if name is None and version is None:
         raise HTTPException(
@@ -137,7 +134,7 @@ async def execute_workflow(name:str = None, version: str = None):
             } 
         }
 
-@router.put("/update/")
+@router.put("/update/{id}")
 async def update_workflow(id: int, name:str = None, version: str = None, spec_file: UploadFile = File(None), input_file: UploadFile = File(None)):
 
     fields_to_update = {
