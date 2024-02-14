@@ -43,7 +43,7 @@ async def list_executed_workflows():
 
 @router.get(
         "/{registry_id}",
-        description="Get details of a specific workflow that was executed by its ID.",
+        description="Get details of a specific workflow that was executed by its registry ID.",
 )
 async def get_workflow_by_id(registry_id: int):
     workflows = session.query(WorkflowExecution).filter(WorkflowExecution.registry_id == registry_id).all()
@@ -173,8 +173,45 @@ async def monitor_execution(reana_id):
 
 
 @router.delete(
-        "/delete/{registry_id}",
-        description="Delete workflow from execution history"
+        "/delete/",
+        description="Delete every workflow execution that was associated with a registry ID OR with a name provided by the execution system "
 )
-async def delete_workflow(id: int):
-    pass
+async def delete_workflow_execution(registry_id: int = None, reana_name: str = None):
+    if registry_id and reana_name:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Either provide registry_id OR name but not both"
+        )
+    deleted_workflows_id = []
+    if registry_id:
+        workflows = session.query(WorkflowExecution).filter(WorkflowExecution.registry_id == registry_id).all()
+    else:
+        workflows = session.query(WorkflowExecution).filter(WorkflowExecution.reana_name == reana_name).all()
+ 
+    for w in workflows:
+        try:
+            deleted_workflows_id.append(
+                client.delete_workflow(
+                    workflow=w.reana_id if registry_id else reana_name,
+                    access_token=os.environ['REANA_ACCESS_TOKEN'],
+                    all_runs=True,
+                    workspace=True
+                )['workflow_id']
+            )
+            session.delete(w)
+            session.commit()
+        except Exception as e:
+            raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Problem while deleting REANA workflow: " + str(e),
+        )
+    
+    if registry_id:
+        message = f"Every workflow associated with registry_id:{registry_id} was successfully deleted"
+    else:
+        message = f"Every workflow associated with name:{reana_name} was successfully deleted"
+    return {
+            "Message": message,
+            "Workflow executions deleted": deleted_workflows_id                
+        }
+
