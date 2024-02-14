@@ -20,15 +20,38 @@ router = APIRouter()
         "/",
         description="List all workflows that were executed",
 )
-async def list_executed_workflows(skip: int = 0, limit: int = 10):
-    pass
+async def list_executed_workflows():
+    executed_workflows = client.get_workflows(
+        access_token=os.environ['REANA_ACCESS_TOKEN'],
+        type='batch',
+        verbose=True
+    )
+    return executed_workflows
 
 @router.get(
-        "/{id}",
+        "/{registry_id}",
         description="Get details of a specific workflow that was executed by its ID.",
 )
-async def get_workflow_by_id(id: int):
-    pass
+async def get_workflow_by_id(registry_id: int):
+    workflows = session.query(WorkflowExecution).filter(WorkflowExecution.workflow_id == registry_id).all()
+    if workflows == []:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Workflow with ID: {registry_id} was not executed in the past",
+        )
+    
+    executed_workflows = []
+    for w in workflows:
+        executed_workflows.append(
+            client.get_workflows(
+                access_token=os.environ['REANA_ACCESS_TOKEN'],
+                type='batch',
+                verbose=True,
+                workflow=w.reana_id
+            )[0]
+        )
+    return executed_workflows
+
 
 
 
@@ -130,7 +153,7 @@ async def monitor_execution(reana_id):
 
 
 @router.delete(
-        "/delete/{id}",
+        "/delete/{registry_id}",
         description="Delete workflow from execution history"
 )
 async def delete_workflow(id: int):
