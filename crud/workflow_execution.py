@@ -240,13 +240,12 @@ async def download_outputs(reana_name: str, run_number:int):
     def _delete_tmp_file():
         os.unlink(temp_file.name)
 
-
     with tempfile.NamedTemporaryFile(dir=os.getcwd(), delete=False) as temp_file:
         temp_file.write(output_content)
 
         return FileResponse(
             temp_file.name, 
-            filename=file_name,
+            filename='outputs.zip',
             background=BackgroundTask(_delete_tmp_file),
         )
 
@@ -280,7 +279,7 @@ async def download_inputs(reana_name: str, run_number:int):
             detail=f"Input file was not found (default values were used)"
         )
 
-
+    print(file_name)
 
     with tempfile.NamedTemporaryFile(dir=os.getcwd(), delete=False) as temp_file:
         temp_file.write(input_content)
