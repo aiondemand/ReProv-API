@@ -21,11 +21,24 @@ router = APIRouter()
         description="List all workflows that were executed",
 )
 async def list_executed_workflows():
+    workflows = session.query(WorkflowExecution).all()
     executed_workflows = client.get_workflows(
         access_token=os.environ['REANA_ACCESS_TOKEN'],
         type='batch',
         verbose=True
     )
+
+    executed_workflows = []
+    for w in workflows:
+        executed_workflows.append(
+            client.get_workflows(
+                access_token=os.environ['REANA_ACCESS_TOKEN'],
+                type='batch',
+                verbose=True,
+                workflow=w.reana_id
+            )[0]
+        )
+    print(len(executed_workflows))
     return executed_workflows
 
 @router.get(
@@ -33,7 +46,7 @@ async def list_executed_workflows():
         description="Get details of a specific workflow that was executed by its ID.",
 )
 async def get_workflow_by_id(registry_id: int):
-    workflows = session.query(WorkflowExecution).filter(WorkflowExecution.workflow_id == registry_id).all()
+    workflows = session.query(WorkflowExecution).filter(WorkflowExecution.registry_id == registry_id).all()
     if workflows == []:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -102,7 +115,7 @@ async def execute_workflow(registry_id: int, background_tasks: BackgroundTasks):
             parameters = {}
         )
         workflow_execution = WorkflowExecution(
-            workflow_id=registry_id,
+            registry_id=registry_id,
             reana_id=workflow_run['workflow_id'],
             reana_name=workflow_run['workflow_name'],
             reana_run_number=workflow_run['run_number'],
