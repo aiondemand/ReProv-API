@@ -103,6 +103,9 @@ async def execute_workflow(registry_id: int, background_tasks: BackgroundTasks):
             workflow_engine='cwl'
         )
     except Exception as e:
+        os.remove(os.path.join(os.getcwd(),spec_temp_file.name))
+        if workflow_registry.input_file_content:
+            os.remove(os.path.join(os.getcwd(),input_temp_file.name))
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Problem while creating REANA workflow: " + str(e),
@@ -126,6 +129,10 @@ async def execute_workflow(registry_id: int, background_tasks: BackgroundTasks):
         session.refresh(workflow_execution)
         print(workflow_run)
     except Exception as e:
+        os.remove(os.path.join(os.getcwd(),spec_temp_file.name))
+        if workflow_registry.input_file_content:
+            os.remove(os.path.join(os.getcwd(),input_temp_file.name))
+
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Problem while starting REANA workflow: " + str(e),
