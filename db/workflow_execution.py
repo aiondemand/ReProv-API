@@ -12,7 +12,7 @@ class WorkflowExecution(Base):
     registry_id = Column(Integer, ForeignKey("workflow_registry.id"))
     start_time = Column(DateTime, default=datetime.utcnow,)
     end_time = Column(DateTime, nullable=True)
-    status = Column(String, default="pending")
+    status = Column(String, default="queued")
     reana_id = Column(String, nullable=True)
     reana_name = Column(String, nullable=True)
     reana_run_number = Column(String, nullable=True)
