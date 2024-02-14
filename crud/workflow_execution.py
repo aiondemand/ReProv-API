@@ -1,5 +1,7 @@
 import asyncio
 import os
+import zipfile
+from fastapi.responses import FileResponse
 from fastapi import APIRouter,HTTPException, BackgroundTasks, status
 from fastapi_utils.tasks import repeat_every
 from db.workflow_execution import WorkflowExecution
@@ -38,7 +40,6 @@ async def list_executed_workflows():
                 workflow=w.reana_id
             )[0]
         )
-    print(len(executed_workflows))
     return executed_workflows
 
 @router.get(
@@ -67,8 +68,6 @@ async def get_workflow_by_id(registry_id: int):
 
 
 
-
-
 @router.post(
         "/execute/{registry_id}",
         description="Execute workflow by invoking REANA system"
@@ -85,6 +84,7 @@ async def execute_workflow(registry_id: int, background_tasks: BackgroundTasks):
     with tempfile.NamedTemporaryFile(dir=os.getcwd(), suffix='.cwl',delete=False) as spec_temp_file:
         spec_temp_file.write(workflow_registry.spec_file_content)
     
+    inputs = {"parameters":{}}
     if workflow_registry.input_file_content:
         with tempfile.NamedTemporaryFile(dir=os.getcwd(), suffix='.yaml',delete=False) as input_temp_file:
             input_temp_file.write(workflow_registry.input_file_content)
@@ -93,7 +93,7 @@ async def execute_workflow(registry_id: int, background_tasks: BackgroundTasks):
                 k, v = line.strip().split(": ")
                 inputs["parameters"][k] = v
     
-    inputs = {"parameters":{}}
+   
     try:
         reana_workflow = client.create_workflow_from_json(
             name=f"{workflow_registry.name}:{workflow_registry.version}",
@@ -127,7 +127,6 @@ async def execute_workflow(registry_id: int, background_tasks: BackgroundTasks):
         session.add(workflow_execution)
         session.commit()
         session.refresh(workflow_execution)
-        print(workflow_run)
     except Exception as e:
         os.remove(os.path.join(os.getcwd(),spec_temp_file.name))
         if workflow_registry.input_file_content:
@@ -214,4 +213,81 @@ async def delete_workflow_execution(registry_id: int = None, reana_name: str = N
             "Message": message,
             "Workflow executions deleted": deleted_workflows_id                
         }
+
+from starlette.background import BackgroundTask
+
+
+@router.get(
+        "/outputs/",
+        description="Download outputs of an executed workflow",
+)
+async def download_outputs(reana_name: str, run_number:int):
+    workflow_execution = session.query(WorkflowExecution).filter(
+        WorkflowExecution.reana_name == reana_name, WorkflowExecution.reana_run_number == run_number
+    ).first()
+
+    if workflow_execution is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Workflow with name: {reana_name} and run number: {run_number} was not found"
+        )
+
+    (output_content,file_name, is_zipped) = client.download_file(
+        workflow=workflow_execution.reana_id,
+        file_name='outputs',
+        access_token=os.environ['REANA_ACCESS_TOKEN']
+    )
+    def _delete_tmp_file():
+        os.unlink(temp_file.name)
+
+
+    with tempfile.NamedTemporaryFile(dir=os.getcwd(), delete=False) as temp_file:
+        temp_file.write(output_content)
+
+        return FileResponse(
+            temp_file.name, 
+            filename=file_name,
+            background=BackgroundTask(_delete_tmp_file),
+        )
+
+
+
+@router.get(
+        "/inputs/",
+        description="Download inputs of an executed workflow",
+)
+async def download_inputs(reana_name: str, run_number:int):
+    workflow_execution = session.query(WorkflowExecution).filter(
+        WorkflowExecution.reana_name == reana_name, WorkflowExecution.reana_run_number == run_number
+    ).first()
+
+    if workflow_execution is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Workflow with name: {reana_name} and run number: {run_number} was not found"
+        )
+    (input_content,file_name, _) = client.download_file(
+        workflow=workflow_execution.reana_id,
+        file_name='inputs.json',
+        access_token=os.environ['REANA_ACCESS_TOKEN']
+    )
+    def _delete_tmp_file():
+        os.unlink(temp_file.name)
+
+    if input_content == b'{}':
+          raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Input file was not found (default values were used)"
+        )
+
+
+
+    with tempfile.NamedTemporaryFile(dir=os.getcwd(), delete=False) as temp_file:
+        temp_file.write(input_content)
+
+        return FileResponse(
+            temp_file.name, 
+            filename=file_name,
+            background=BackgroundTask(_delete_tmp_file),
+        )
 

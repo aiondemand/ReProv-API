@@ -23,7 +23,7 @@ async def list_workflows(skip: int = 0, limit: int = 10):
         description="Get details of a specific workflow in the registry by its ID.",
 )
 async def get_workflow_details(id: int):
-    workflow = session.query(WorkflowRegistry).filter(WorkflowRegistry.id == id).first()
+    workflow = session.query(WorkflowRegistry.id,WorkflowRegistry.name,WorkflowRegistry.version).filter(WorkflowRegistry.id == id).first()
 
     if workflow is None:
         raise HTTPException(
@@ -69,8 +69,8 @@ async def update_workflow(id: int, name:str = None, version: str = None, spec_fi
         k: v for k, v in {
             'name': name,
             'version': version,
-            'spec_file': spec_file.file.read() if spec_file else None,
-            'input_file': input_file.file.read() if input_file else None
+            'spec_file_content': spec_file.file.read() if spec_file else None,
+            'input_file_content': input_file.file.read() if input_file else None
         }.items() if v is not None}
 
     wf_updated = session.query(WorkflowRegistry).filter(WorkflowRegistry.id == id).update(fields_to_update)
