@@ -154,19 +154,22 @@ async def execute_workflow(registry_id: int, background_tasks: BackgroundTasks):
    
  
 async def monitor_execution(reana_id):
+    workflow_execution = session.query(WorkflowExecution).filter(WorkflowExecution.reana_id == reana_id).first()
     while True:
-        await asyncio.sleep(2) 
+        await asyncio.sleep(5) 
         status = client.get_workflow_status(
             workflow=reana_id,
             access_token=os.environ['REANA_ACCESS_TOKEN']
         )['status']
 
+        if status != workflow_execution.status:
+            workflow_execution.status = status
+            session.commit()
         if status == 'finished' or status == 'failed':
             break
 
     workflow_execution = session.query(WorkflowExecution).filter(WorkflowExecution.reana_id == reana_id).first()
     workflow_execution.end_time = datetime.utcnow()
-    workflow_execution.status = status
     session.commit()
 
 
@@ -186,7 +189,7 @@ async def delete_workflow_execution(registry_id: int = None, reana_name: str = N
         workflows = session.query(WorkflowExecution).filter(WorkflowExecution.registry_id == registry_id).all()
     else:
         workflows = session.query(WorkflowExecution).filter(WorkflowExecution.reana_name == reana_name).all()
- 
+
     for w in workflows:
         try:
             deleted_workflows_id.append(
