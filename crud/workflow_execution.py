@@ -279,8 +279,6 @@ async def download_inputs(reana_name: str, run_number:int):
             detail=f"Input file was not found (default values were used)"
         )
 
-    print(file_name)
-
     with tempfile.NamedTemporaryFile(dir=os.getcwd(), delete=False) as temp_file:
         temp_file.write(input_content)
 

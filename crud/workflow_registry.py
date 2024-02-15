@@ -81,7 +81,6 @@ async def update_workflow(id: int, name:str = None, version: str = None, spec_fi
         )
 
     session.commit()
-    print(fields_to_update)
     return {
             "Workflow updated successfully":{
                 "ID": id,
