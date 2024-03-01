@@ -4,7 +4,7 @@ import zipfile
 from fastapi.responses import FileResponse
 from fastapi import APIRouter,HTTPException, BackgroundTasks, status
 from fastapi_utils.tasks import repeat_every
-from db.workflow_execution import WorkflowExecution
+from db.workflow_execution import WorkflowExecution, WorkflowExecutionStep
 from db.workflow_registry import WorkflowRegistry
 from db.user import User
 from db.init_db  import session
@@ -155,21 +155,50 @@ async def execute_workflow(registry_id: int, background_tasks: BackgroundTasks):
  
 async def monitor_execution(reana_id):
     workflow_execution = session.query(WorkflowExecution).filter(WorkflowExecution.reana_id == reana_id).first()
+    prev_step = None
     while True:
-        await asyncio.sleep(5) 
-        status = client.get_workflow_status(
+        workflow_status = client.get_workflow_status(
             workflow=reana_id,
             access_token=os.environ['REANA_ACCESS_TOKEN']
-        )['status']
+        )
 
-        if status != workflow_execution.status:
-            workflow_execution.status = status
+        current_step = workflow_status['progress']['current_step_name']
+        if current_step != prev_step: # if a new step is running: 
+            if prev_step is not None:
+                prev_workflow_execution_step = session.query(WorkflowExecutionStep).filter(
+                    WorkflowExecutionStep.workflow_execution_id == workflow_execution.id,
+                    WorkflowExecutionStep.name == prev_step,
+                ).first()
+                prev_workflow_execution_step.end_time = datetime.utcnow()
+                session.add(prev_workflow_execution_step)
+                session.commit()    
+            current_workflow_execution_step = WorkflowExecutionStep(
+                name=current_step,
+                workflow_execution_id=workflow_execution.id
+            )
+
+            prev_step = current_step
+
+            session.add(current_workflow_execution_step)
             session.commit()
-        if status == 'finished' or status == 'failed':
+      
+        
+        if workflow_status['status'] != workflow_execution.status:
+            workflow_execution.status = workflow_status['status']
+        if workflow_status['status'] == 'finished' or workflow_status['status'] == 'failed':
             break
+
+    last_workflow_execution_step = session.query(WorkflowExecutionStep).filter(
+                    WorkflowExecutionStep.workflow_execution_id == workflow_execution.id,
+                    WorkflowExecutionStep.name == current_step,
+    ).first()
+    last_workflow_execution_step.end_time = datetime.utcnow()
+    session.add(last_workflow_execution_step)
+    session.commit()
 
     workflow_execution = session.query(WorkflowExecution).filter(WorkflowExecution.reana_id == reana_id).first()
     workflow_execution.end_time = datetime.utcnow()
+    session.add(workflow_execution)
     session.commit()
 
 

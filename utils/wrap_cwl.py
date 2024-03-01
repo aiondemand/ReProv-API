@@ -1,10 +1,10 @@
+from io import BytesIO, StringIO
 from ruamel.yaml import YAML
 
 yaml = YAML(typ='safe', pure=True)
 
-def wrap(input, output):
-    with open(input, 'r') as f:
-        data = yaml.load(f)
+def wrap(spec_file):
+    data = yaml.load(spec_file)
 
     steps = data['steps'].keys()
     for s in steps:
@@ -55,7 +55,6 @@ def wrap(input, output):
         data['steps'][s]['run']["arguments"] = ['/app/execute_and_monitor.py', prev_base_command] + data['steps'][s]['run']["arguments"]
 
 
-
-    # Update your_file.yaml with the modified data
-    with open(output, 'w') as f:
-        yaml.dump(data, f)
+    with BytesIO() as output_yaml:
+        yaml.dump(data, output_yaml)
+        return output_yaml.getvalue()
