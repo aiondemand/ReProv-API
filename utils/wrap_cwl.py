@@ -6,53 +6,61 @@ yaml = YAML(typ='safe', pure=True)
 def wrap(spec_file):
     data = yaml.load(spec_file)
 
-    steps = data['steps'].keys()
-    for s in steps:
-        # add extra output fields for the whole workflow
-        data['outputs'] += [
-            {
-                'id': f"{s}_metadata",
-                'outputSource': f"{s}/metadata",
-                'type': 'File'
-            },
-            {
-                'id': f"{s}_out",
-                'outputSource': f"{s}/out",
-                'type': 'File'
-            },
-            {
-                'id': f"{s}_err",
-                'outputSource': f"{s}/err",
-                'type': 'File'
-            }
-        ]
-        # add extra output fields for every step
-        data['steps'][s]['out'] += ['out','err','metadata']
-        data['steps'][s]['requirements'] = {'InlineJavascriptRequirement': {}}
+    steps_file_outputs = {}
+    for s in data['steps']:
+        file_ouputs = {}
+        outputs = data['steps'][s]['run']['outputs']
+        for o in outputs:
+            if o['type'] == 'File':
+                file_ouputs[o['id']] = o['outputBinding']['glob']
 
-        data['steps'][s]['run']['outputs'] += [
-            {
-                'id': 'metadata',
-                'outputBinding': {'glob': 'execution_metadata', "outputEval": "${\n    var output = self[0];\n    output.basename = 'metadata_%s';\n    return output;\n}" % s},
-                'type': 'File'
-            },
+        steps_file_outputs.update(file_ouputs)
 
-            {
-                'id': 'out',
-                'outputBinding': {'glob': 'stdout', "outputEval": "${\n    var output = self[0];\n    output.basename = 'stdout_%s';\n    return output;\n}" % s},
-                'type': 'File'
-            },
-            {
-                'id': 'err',
-                'outputBinding': {'glob': 'stderr', "outputEval": "${\n    var output = self[0];\n    output.basename = 'stderr_%s';\n    return output;\n}" % s},
-                'type': 'File'
+    # we are adding a final step in order to create a file that maps produced files with their corresponding name
+    map_step_in = {}
+    for s in steps_file_outputs:
+        map_step_in[steps_file_outputs[s].split('.')[-1].rstrip(')')] = steps_file_outputs[s].split('.')[-1].rstrip(')')
 
-            }
-        ]
+    map_step_out = ['mapping']
 
-        prev_base_command = data['steps'][s]['run']['baseCommand']
-        data['steps'][s]['run']["baseCommand"] = 'python'
-        data['steps'][s]['run']["arguments"] = ['/app/execute_and_monitor.py', prev_base_command] + data['steps'][s]['run']["arguments"]
+
+    map_step_run_inputs = {}
+    for s in steps_file_outputs:
+        map_step_run_inputs[steps_file_outputs[s].split('.')[-1].rstrip(')')] = 'string'
+
+
+    map_step = {}
+    map_step['in'] = map_step_in
+    map_step['out'] = map_step_out
+    map_step['run'] = {}
+    map_step['run']['inputs'] = map_step_run_inputs
+    map_step['run']['outputs'] = [{'id': 'mapping', 'outputBinding': {'glob': 'map.txt'}, 'type':'File'}]
+    map_step['run']['class'] = 'CommandLineTool'
+    map_step['run']['baseCommand'] = 'sh'
+
+
+    mapping = {
+        s:f"$(inputs.{map_step_in[steps_file_outputs[s].split('.')[-1].rstrip(')')]}"
+        for s in steps_file_outputs
+    }
+    args = f""""""
+    for m in mapping:
+        args += f"""
+        echo {m},{mapping[m]}) >> map.txt  
+        """
+
+    map_step['run']['arguments'] = ["-c"] + [args]
+    data['steps']['map'] = map_step
+
+
+    data['outputs'] += [
+        {
+            'id': 'mapping',
+            'outputSource': 'map/mapping',
+            'type': 'File',
+        }
+    ]
+    data['requirements']['InlineJavascriptRequirement'] =  {}
 
 
     with BytesIO() as output_yaml:

@@ -4,7 +4,7 @@ from db.workflow_registry import WorkflowRegistry, WorkflowRegistryModel
 from db.user import User
 from db.init_db  import session
 from sqlalchemy.exc import IntegrityError
-
+from utils.wrap_cwl import wrap
 from reana_client.api import client
 import tempfile
 
@@ -38,7 +38,7 @@ async def get_workflow_details(id: int):
 
 )
 async def register_workflow(workflow: WorkflowRegistryModel = Depends(), spec_file: UploadFile = File(...), input_file: UploadFile = File(None)):
-    spec_file_content = spec_file.file.read()
+    spec_file_content = wrap(spec_file.file.read())
     input_file_content = input_file.file.read() if input_file else None
     try:
         db_workflow = WorkflowRegistry(name=workflow.name, version=workflow.version, spec_file_content=spec_file_content, input_file_content = input_file_content)
