@@ -170,8 +170,10 @@ async def monitor_execution(reana_id):
                     WorkflowExecutionStep.name == prev_step,
                 ).first()
                 prev_workflow_execution_step.end_time = datetime.utcnow()
+                prev_workflow_execution_step.status = 'finished'
                 session.add(prev_workflow_execution_step)
                 session.commit()    
+            
             current_workflow_execution_step = WorkflowExecutionStep(
                 name=current_step,
                 workflow_execution_id=workflow_execution.id
@@ -182,7 +184,6 @@ async def monitor_execution(reana_id):
             session.add(current_workflow_execution_step)
             session.commit()
       
-        
         if workflow_status['status'] != workflow_execution.status:
             workflow_execution.status = workflow_status['status']
         if workflow_status['status'] == 'finished' or workflow_status['status'] == 'failed':
