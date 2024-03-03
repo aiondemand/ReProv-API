@@ -20,54 +20,76 @@ router = APIRouter()
 
 @router.get(
         "/",
-        description="List all workflows that were executed",
+        description="List all workflows that have been executed",
 )
 async def list_executed_workflows():
-    workflows = session.query(WorkflowExecution).all()
-    executed_workflows = client.get_workflows(
-        access_token=os.environ['REANA_ACCESS_TOKEN'],
-        type='batch',
-        verbose=True
-    )
-
-    executed_workflows = []
-    for w in workflows:
-        executed_workflows.append(
-            client.get_workflows(
-                access_token=os.environ['REANA_ACCESS_TOKEN'],
-                type='batch',
-                verbose=True,
-                workflow=w.reana_id
-            )[0]
-        )
-    return executed_workflows
-
-@router.get(
-        "/{registry_id}",
-        description="Get details of a specific workflow that was executed by its registry ID.",
-)
-async def get_workflow_by_id(registry_id: int):
-    workflows = session.query(WorkflowExecution).filter(WorkflowExecution.registry_id == registry_id).all()
-    if workflows == []:
+    workflow_executions = session.query(WorkflowExecution).all()
+    if workflow_executions is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Workflow with ID: {registry_id} was not executed in the past",
+            detail=f"No workflows have been executed",
         )
     
-    executed_workflows = []
-    for w in workflows:
-        executed_workflows.append(
-            client.get_workflows(
-                access_token=os.environ['REANA_ACCESS_TOKEN'],
-                type='batch',
-                verbose=True,
-                workflow=w.reana_id
-            )[0]
+    for workflow_execution in workflow_executions:
+        data = {
+            'id': workflow_execution.id,
+            'start_time': workflow_execution.start_time,
+            'end_time': workflow_execution.end_time,
+            'status': workflow_execution.status,
+            'reana_name': workflow_execution.reana_name,
+            'reana_run_number': workflow_execution.reana_run_number,
+            'registry_id': workflow_execution.registry_id,
+            'steps' : [] 
+        }
+        workflow_execution_steps = session.query(WorkflowExecutionStep).filter(WorkflowExecutionStep.workflow_execution_id == workflow_execution.id).all()
+        for step in workflow_execution_steps:
+            data['steps'].append(
+                {
+                    'id': step.id,
+                    'name': step.name,
+                    'status': step.status,
+                    'start_time': step.start_time,
+                    'end_time': step.end_time
+                }
+            )
+    return data
+
+@router.get(
+        "/{execution_id}",
+        description="Get details of a specific workflow that was executed by its execution ID.",
+)
+async def get_workflow_by_id(execution_id: int):
+    workflow_execution = session.query(WorkflowExecution).filter(WorkflowExecution.id==execution_id).first()
+    if workflow_execution is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Workflow execution with ID:{execution_id} was not found",
         )
-    return executed_workflows
+    
+    data = {
+        'id': workflow_execution.id,
+        'start_time': workflow_execution.start_time,
+        'end_time': workflow_execution.end_time,
+        'status': workflow_execution.status,
+        'reana_name': workflow_execution.reana_name,
+        'reana_run_number': workflow_execution.reana_run_number,
+        'registry_id': workflow_execution.registry_id,
+        'steps' : [] 
+    }
+    workflow_execution_steps = session.query(WorkflowExecutionStep).filter(WorkflowExecutionStep.workflow_execution_id == workflow_execution.id).all()
+    for step in workflow_execution_steps:
+        data['steps'].append(
+            {
+                'id': step.id,
+                'name': step.name,
+                'status': step.status,
+                'start_time': step.start_time,
+                'end_time': step.end_time
+            }
+        )
+    return data
 
-
-
+    
 @router.post(
         "/execute/{registry_id}",
         description="Execute workflow by invoking REANA system"
