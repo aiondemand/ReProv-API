@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from utils.wrap_cwl import wrap
 from reana_client.api import client
 import tempfile
+from ruamel.yaml import YAML
 
 router = APIRouter()
 
@@ -15,22 +16,41 @@ router = APIRouter()
         description="List all workflows in the registry",
 )
 async def list_workflows(skip: int = 0, limit: int = 10):
-    workflows = session.query(WorkflowRegistry.id,WorkflowRegistry.name,WorkflowRegistry.version).offset(skip).limit(limit).all()
-    return [w for w in workflows]
+    yaml = YAML(typ='safe', pure=True)
+    workflows = session.query(WorkflowRegistry).offset(skip).limit(limit).all()
+    return [
+        {
+            'id': w.id,
+            'name': w.name,
+            'version': w.version,
+            'spec_file_content': yaml.load(w.spec_file_content.decode('utf-8')),
+            'input_file_content': w.input_file_content,
+        }  for w in workflows
+    ]
+        
+
+
 
 @router.get(
         "/{id}",
         description="Get details of a specific workflow in the registry by its ID.",
 )
 async def get_workflow_details(id: int):
-    workflow = session.query(WorkflowRegistry.id,WorkflowRegistry.name,WorkflowRegistry.version).filter(WorkflowRegistry.id == id).first()
+    yaml = YAML(typ='safe', pure=True)
+    workflow = session.query(WorkflowRegistry).filter(WorkflowRegistry.id == id).first()
 
     if workflow is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Workflow with ID {id} was not found in the registry",
         )
-    return workflow
+    return {
+        'id': workflow.id,
+        'name': workflow.name,
+        'version': workflow.version,
+        'spec_file_content': yaml.load(workflow.spec_file_content.decode('utf-8')),
+        'input_file_content': workflow.input_file_content,
+    }
 
 @router.post(
         "/register/",

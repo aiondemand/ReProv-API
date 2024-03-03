@@ -99,7 +99,6 @@ async def track_provenance(reana_name: str, run_number:int):
 			workflow_execution_id=workflow_execution.id
 		) for s in workflow_execution_steps if s.name != 'map'
 	]
-	print(len(step_activities))
 	workflow_activity = Activity(
 		type='workflow_execution',
 		name=f"{workflow_execution.reana_name}:{workflow_execution.reana_run_number}",
@@ -134,8 +133,6 @@ async def track_provenance(reana_name: str, run_number:int):
 			activity.used.append(entity)
 			session.add(activity)
 
-		print(step_file_outputs)
-		print(step_activities)
 		
 		for f in step_file_outputs:
 			entity_name = map_df.loc[map_df['filename'] == f].to_dict('records')[0]['entity_name']
