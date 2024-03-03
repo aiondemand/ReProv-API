@@ -228,8 +228,7 @@ async def draw_provenance(reana_name: str, run_number:int):
 			entity_name = session.query(Entity.name).filter(Entity.id==g.entity_id).first()[0].replace(':','_')
 			activity_name = session.query(Activity.name).filter(Activity.id==g.activity_id).first()[0].replace(':','_')
 			doc.wasGeneratedBy(entity_name,activity_name)
-		# for activity:
-		# this entity was used by activity
+
 		used_by = session.query(EntityUsedBy).filter(EntityUsedBy.entity_id==e.id).all()
 		for u in used_by:
 			entity_name = session.query(Entity.name).filter(Entity.id==u.entity_id).first()[0].replace(':','_')
@@ -259,5 +258,5 @@ async def draw_provenance(reana_name: str, run_number:int):
 		png_name, 
 		filename=png_name,
 		background=BackgroundTask(_delete_png_file),
-        )
+    )
 
