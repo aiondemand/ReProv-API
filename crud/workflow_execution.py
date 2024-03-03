@@ -188,6 +188,8 @@ async def monitor_execution(reana_id):
         if workflow_status['status'] == 'finished' or workflow_status['status'] == 'failed':
             break
 
+        await asyncio.sleep(0.1)
+
     last_workflow_execution_step = session.query(WorkflowExecutionStep).filter(
                     WorkflowExecutionStep.workflow_execution_id == workflow_execution.id,
                     WorkflowExecutionStep.name == current_step,

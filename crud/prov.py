@@ -21,14 +21,12 @@ router = APIRouter()
 )
 async def track_provenance(reana_name: str, run_number:int):
 	workflow_execution = session.query(WorkflowExecution).filter(WorkflowExecution.reana_name == reana_name, WorkflowExecution.reana_run_number == run_number).first()
-	workflow_execution_steps = session.query(WorkflowExecutionStep).filter(WorkflowExecutionStep.workflow_execution_id == workflow_execution.id).all()
-
 	if workflow_execution is None:
 		raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Workflow with name {reana_name} and run number {run_number} was not found",
         )
-	
+
 	execution_status = workflow_execution.status
 
 	if execution_status != 'finished':
@@ -37,7 +35,9 @@ async def track_provenance(reana_name: str, run_number:int):
             detail=f"Workflow with name {reana_name} and run number {run_number} must be finished in order to capture provenance",
         )
 
+	workflow_execution_steps = session.query(WorkflowExecutionStep).filter(WorkflowExecutionStep.workflow_execution_id == workflow_execution.id).all()
 
+	
 	workflow_files = client.list_files(
 		workflow=workflow_execution.reana_id,
 		access_token=os.environ['REANA_ACCESS_TOKEN']
@@ -59,7 +59,8 @@ async def track_provenance(reana_name: str, run_number:int):
 		path=f"/var/reana/users/00000000-0000-0000-0000-000000000000/workflows/{workflow_execution.reana_id}/workflow.json",
 		name='workflow.json',
 		size=spec_file['size']['human_readable'],
-		last_modified=datetime.fromisoformat(spec_file['last-modified'])
+		last_modified=datetime.fromisoformat(spec_file['last-modified']),
+		workflow_execution_id=workflow_execution.id
 	)
 
 	# create entities for the intermediate files
@@ -69,7 +70,8 @@ async def track_provenance(reana_name: str, run_number:int):
 			path=i_file['name'],
 			name=i_file['name'].split('/')[-1],
 			size=i_file['size']['human_readable'],
-			last_modified=datetime.fromisoformat(i_file['last-modified'])
+			last_modified=datetime.fromisoformat(i_file['last-modified']),
+			workflow_execution_id=workflow_execution.id
 		) for i_file in intermediate_files
 	]
 	
@@ -81,7 +83,8 @@ async def track_provenance(reana_name: str, run_number:int):
 			path=o_file['name'],
 			name=o_file['name'].split('/')[-1],
 			size=o_file['size']['human_readable'],
-			last_modified=datetime.fromisoformat(o_file['last-modified'])
+			last_modified=datetime.fromisoformat(o_file['last-modified']),
+			workflow_execution_id=workflow_execution.id
 		) for o_file in output_files
 	]
 	
@@ -92,7 +95,8 @@ async def track_provenance(reana_name: str, run_number:int):
 			type='step_execution',
 			name=s.name,
 			start_time=s.start_time,
-			end_time=s.end_time
+			end_time=s.end_time,
+			workflow_execution_id=workflow_execution.id
 		) for s in workflow_execution_steps if s.name != 'map'
 	]
 

@@ -1,8 +1,8 @@
 from typing import List, Union
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey, Enum, Table
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum
 from datetime import datetime
 from .init_db import Base
-from pydantic import BaseModel
+from .workflow_execution import WorkflowExecution
 from sqlalchemy.orm import relationship
 
 
@@ -17,6 +17,8 @@ class Entity(Base):
     size = Column(Integer, nullable=True)
     last_modified = Column(DateTime, nullable=True)
 
+    workflow_execution_id = Column(Integer, ForeignKey('workflow_execution.id'))  
+
 class Activity(Base):
     __tablename__ = 'activity'
 
@@ -26,6 +28,7 @@ class Activity(Base):
     start_time = Column(DateTime, default=datetime.utcnow, nullable=False)  
     end_time = Column(DateTime, nullable=True)
 
+    workflow_execution_id = Column(Integer, ForeignKey('workflow_execution.id'))  
     # Use backref directly
     generated = relationship("Entity",secondary='entity_generated_by')
     used = relationship("Entity", secondary='entity_used_by')
