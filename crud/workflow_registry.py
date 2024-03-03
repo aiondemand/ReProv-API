@@ -40,18 +40,18 @@ async def get_workflow_details(id: int):
 async def register_workflow(workflow: WorkflowRegistryModel = Depends(), spec_file: UploadFile = File(...), input_file: UploadFile = File(None)):
     spec_file_content = wrap(spec_file.file.read())
     input_file_content = input_file.file.read() if input_file else None
+    
+    db_workflow = WorkflowRegistry(name=workflow.name, version=workflow.version, spec_file_content=spec_file_content, input_file_content = input_file_content)
     try:
-        db_workflow = WorkflowRegistry(name=workflow.name, version=workflow.version, spec_file_content=spec_file_content, input_file_content = input_file_content)
-        try:
-            session.add(db_workflow)
-            session.commit()
-            session.refresh(db_workflow)
-        except IntegrityError as e:
-            session.rollback()
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, 
-                detail="Integrity error. Duplicate name and version combination."
-            ) from e
+        session.add(db_workflow)
+        session.commit()
+        session.refresh(db_workflow)
+    except IntegrityError as e:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="Integrity error. Duplicate name and version combination."
+        ) from e
     finally:
         return {
             "New Workflow registered successfully with":{

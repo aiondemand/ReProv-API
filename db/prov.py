@@ -17,7 +17,9 @@ class Entity(Base):
     size = Column(Integer, nullable=True)
     last_modified = Column(DateTime, nullable=True)
 
-    workflow_execution_id = Column(Integer, ForeignKey('workflow_execution.id'))  
+    workflow_execution_id = Column(Integer, ForeignKey('workflow_execution.id'))
+    started = relationship("Activity",secondary='activity_started_by')
+    ended = relationship("Activity",secondary='activity_ended_by')
 
 class Activity(Base):
     __tablename__ = 'activity'
@@ -45,5 +47,21 @@ class EntityGeneratedBy(Base):
     __tablename__ = "entity_generated_by"
 
     id = Column(Integer, primary_key=True)
-    entity_id = Column(Integer, ForeignKey('entity.id')) 
+    entity_id = Column(Integer, ForeignKey('entity.id'))  
     activity_id = Column(Integer, ForeignKey('activity.id'))  
+
+
+class ActivityStartedBy(Base):
+    __tablename__ = "activity_started_by"
+
+    id = Column(Integer, primary_key=True)
+    activity_id = Column(Integer, ForeignKey('activity.id'))  
+    entity_id = Column(Integer, ForeignKey('entity.id')) 
+
+
+class ActivityEnded(Base):
+    __tablename__ = "activity_ended_by"
+
+    id = Column(Integer, primary_key=True)
+    activity_id = Column(Integer, ForeignKey('activity.id'))  
+    entity_id = Column(Integer, ForeignKey('entity.id')) 

@@ -90,7 +90,7 @@ async def track_provenance(reana_name: str, run_number:int):
 	
 	entities = [workflow_entity] + intermediate_entities + output_entities
 
-	activities = [
+	step_activities = [
 		Activity(
 			type='step_execution',
 			name=s.name,
@@ -99,14 +99,20 @@ async def track_provenance(reana_name: str, run_number:int):
 			workflow_execution_id=workflow_execution.id
 		) for s in workflow_execution_steps if s.name != 'map'
 	]
+	print(len(step_activities))
+	workflow_activity = Activity(
+		type='workflow_execution',
+		name=f"{workflow_execution.reana_name}:{workflow_execution.reana_run_number}",
+		start_time=workflow_execution.start_time,
+		end_time=workflow_execution.end_time,
+		workflow_execution_id=workflow_execution.id
+	)
+	activities = [workflow_activity] + step_activities
 
 	for e in entities:
 		session.add(e)
 	for a in activities:
 		session.add(a)
-
-	session.commit()
-
 
 	workflow_spec_file = session.query(WorkflowRegistry).filter(WorkflowRegistry.id == workflow_execution.registry_id).first().spec_file_content
 	yaml = YAML(typ='safe', pure=True)
@@ -124,19 +130,31 @@ async def track_provenance(reana_name: str, run_number:int):
 		for f in step_file_inputs:
 			entity_name = map_df.loc[map_df['filename'] == f].to_dict('records')[0]['entity_name']
 			entity = [e for e in entities if e.name==entity_name][0]
-			activity = [a for a in activities if a.name==s][0]
+			activity = [a for a in step_activities if a.name==s][0]
 			activity.used.append(entity)
 			session.add(activity)
 
+		print(step_file_outputs)
+		print(step_activities)
 		
 		for f in step_file_outputs:
 			entity_name = map_df.loc[map_df['filename'] == f].to_dict('records')[0]['entity_name']
 			entity = [e for e in entities if e.name==entity_name][0]
-			activity = [a for a in activities if a.name==s][0]
+			activity = [a for a in step_activities if a.name==s][0]
 
 			activity.generated.append(entity)
 			session.add(activity)
 	
+	for e in entities:
+		# workflow used every entity
+		workflow_activity.used.append(e)
+		# workflow generated every entity that was not input on first step
+		workflow_activity.generated.append(e)
+		session.add(workflow_activity)
+
+	workflow_entity.started.append(workflow_activity)
+	workflow_entity.ended.append(workflow_activity)
+
 	session.commit()
 
 	return {}
