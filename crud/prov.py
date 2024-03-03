@@ -20,6 +20,8 @@ router = APIRouter()
 	description="Capture provenance for workflow with specific reana_name and run number",
 )
 async def track_provenance(reana_name: str, run_number:int):
+	
+	
 	workflow_execution = session.query(WorkflowExecution).filter(WorkflowExecution.reana_name == reana_name, WorkflowExecution.reana_run_number == run_number).first()
 	if workflow_execution is None:
 		raise HTTPException(
@@ -33,6 +35,13 @@ async def track_provenance(reana_name: str, run_number:int):
 		raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Workflow with name {reana_name} and run number {run_number} must be finished in order to capture provenance",
+        )
+	
+	previously_captured = session.query(Activity).filter(Activity.workflow_execution_id == workflow_execution.id).first()
+	if previously_captured:
+		raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Provenance for workflow with name {reana_name} and run number {run_number} was captured before",
         )
 
 	workflow_execution_steps = session.query(WorkflowExecutionStep).filter(WorkflowExecutionStep.workflow_execution_id == workflow_execution.id).all()
@@ -154,4 +163,9 @@ async def track_provenance(reana_name: str, run_number:int):
 
 	session.commit()
 
-	return {}
+	return {
+		"Provenance was succesfully captured for workflow with":{
+			"Reana Name": reana_name,
+			"Run Number": run_number
+		} 
+	}
