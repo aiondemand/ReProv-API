@@ -1,12 +1,17 @@
 import os
+import tempfile
 import pandas as pd
 from datetime import datetime
+from fastapi.responses import FileResponse
+from starlette.background import BackgroundTask
 from fastapi import APIRouter, Depends, HTTPException, status
-from db.prov import Entity, Activity
+from db.prov import Entity, Activity,EntityUsedBy,EntityGeneratedBy,ActivityStartedBy,ActivityEndedBy
 from db.init_db  import session
 from db.workflow_execution import WorkflowExecution, WorkflowExecutionStep
 from db.workflow_registry import WorkflowRegistry
 from ruamel.yaml import YAML
+from prov.model import ProvDocument
+from prov.dot import prov_to_dot
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from reana_client.api import client
@@ -65,7 +70,7 @@ async def track_provenance(reana_name: str, run_number:int):
 	# create entity for the whole workflow
 	workflow_entity = Entity(
 		type='workflow',
-		path=f"/var/reana/users/00000000-0000-0000-0000-000000000000/workflows/{workflow_execution.reana_id}/workflow.json",
+		path=f"{workflow_execution.reana_id}/workflow.json",
 		name='workflow.json',
 		size=spec_file['size']['human_readable'],
 		last_modified=datetime.fromisoformat(spec_file['last-modified']),
@@ -89,7 +94,7 @@ async def track_provenance(reana_name: str, run_number:int):
 	output_entities = [
 		Entity(
 			type='workflow_final_result_file',
-			path=o_file['name'],
+			path=f"{workflow_execution.reana_id}/o_file['name']",
 			name=o_file['name'].split('/')[-1],
 			size=o_file['size']['human_readable'],
 			last_modified=datetime.fromisoformat(o_file['last-modified']),
@@ -102,7 +107,7 @@ async def track_provenance(reana_name: str, run_number:int):
 	step_activities = [
 		Activity(
 			type='step_execution',
-			name=s.name,
+			name=f"{workflow_execution.reana_id}/s.name",
 			start_time=s.start_time,
 			end_time=s.end_time,
 			workflow_execution_id=workflow_execution.id
@@ -110,7 +115,7 @@ async def track_provenance(reana_name: str, run_number:int):
 	]
 	workflow_activity = Activity(
 		type='workflow_execution',
-		name=f"{workflow_execution.reana_name}:{workflow_execution.reana_run_number}",
+		name=f"{workflow_execution.reana_name}.{workflow_execution.reana_run_number}",
 		start_time=workflow_execution.start_time,
 		end_time=workflow_execution.end_time,
 		workflow_execution_id=workflow_execution.id
@@ -169,3 +174,90 @@ async def track_provenance(reana_name: str, run_number:int):
 			"Run Number": run_number
 		} 
 	}
+
+
+
+@router.get(
+	"/draw/",
+	description="Create a graphical represenation of provenance for workflow with specific reana_name and run number",
+)
+async def draw_provenance(reana_name: str, run_number:int):
+	workflow_execution = session.query(WorkflowExecution).filter(WorkflowExecution.reana_name == reana_name, WorkflowExecution.reana_run_number == run_number).first()
+	if workflow_execution is None:
+		raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Workflow with name {reana_name} and run number {run_number} was not found",
+        )
+	
+
+	activities = session.query(Activity).filter(Activity.workflow_execution_id==workflow_execution.id).all()
+	entities = session.query(Entity).filter(Entity.workflow_execution_id==workflow_execution.id).all()
+
+	
+
+	doc = ProvDocument() 
+	doc.set_default_namespace('https://www.w3.org/TR/prov-dm/')
+
+	for e in entities:
+		doc.entity(
+			e.name,
+			{
+				'id': e.id,
+				'type': e.type,
+				'path': e.path,
+				'name': e.name,
+				'size': e.size,
+				'last_modified': e.last_modified,
+			}
+		)
+		
+	for a in activities:
+		doc.activity(
+			a.name.replace(':','_'), 
+			a.start_time,
+			a.end_time,
+			{
+				'id': a.id,
+				'type': a.type
+			}
+		)
+		
+	for e in entities:
+		generated_by = session.query(EntityGeneratedBy).filter(EntityGeneratedBy.entity_id==e.id).all()
+		for g in generated_by:
+			entity_name = session.query(Entity.name).filter(Entity.id==g.entity_id).first()[0].replace(':','_')
+			activity_name = session.query(Activity.name).filter(Activity.id==g.activity_id).first()[0].replace(':','_')
+			doc.wasGeneratedBy(entity_name,activity_name)
+		# for activity:
+		# this entity was used by activity
+		used_by = session.query(EntityUsedBy).filter(EntityUsedBy.entity_id==e.id).all()
+		for u in used_by:
+			entity_name = session.query(Entity.name).filter(Entity.id==u.entity_id).first()[0].replace(':','_')
+			activity_name = session.query(Activity.name).filter(Activity.id==u.activity_id).first()[0].replace(':','_')
+			doc.used(entity_name,activity_name)
+
+	for a in activities:
+		started_by = session.query(ActivityStartedBy).filter(ActivityStartedBy.activity_id==a.id).all()
+		for s in started_by:
+			entity_name = session.query(Entity.name).filter(Entity.id==s.entity_id).first()[0].replace(':','')
+			activity_name = session.query(Activity.name).filter(Activity.id==s.activity_id).first()[0].replace(':','')
+			doc.wasStartedBy(activity_name,entity_name)
+	for a in activities:
+		ended_by = session.query(ActivityEndedBy).filter(ActivityEndedBy.activity_id==a.id).all()
+		for e in ended_by:
+			entity_name = session.query(Entity.name).filter(Entity.id==e.entity_id).first()[0].replace(':','')
+			activity_name = session.query(Activity.name).filter(Activity.id==e.activity_id).first()[0].replace(':','')
+			doc.wasStartedBy(activity_name,entity_name)
+
+	png_name = f"{reana_name}:{run_number}-provenance.png"
+	dot = prov_to_dot(doc).write_png(png_name)
+	def _delete_png_file():
+		os.unlink(png_name)
+
+
+	return FileResponse(
+		png_name, 
+		filename=png_name,
+		background=BackgroundTask(_delete_png_file),
+        )
+

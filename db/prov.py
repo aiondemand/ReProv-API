@@ -59,7 +59,7 @@ class ActivityStartedBy(Base):
     entity_id = Column(Integer, ForeignKey('entity.id')) 
 
 
-class ActivityEnded(Base):
+class ActivityEndedBy(Base):
     __tablename__ = "activity_ended_by"
 
     id = Column(Integer, primary_key=True)

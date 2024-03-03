@@ -3,6 +3,7 @@ import os
 import zipfile
 from fastapi.responses import FileResponse
 from fastapi import APIRouter,HTTPException, BackgroundTasks, status
+from starlette.background import BackgroundTask
 from fastapi_utils.tasks import repeat_every
 from db.workflow_execution import WorkflowExecution, WorkflowExecutionStep
 from db.workflow_registry import WorkflowRegistry
@@ -271,7 +272,6 @@ async def delete_workflow_execution(registry_id: int = None, reana_name: str = N
             "Workflow executions deleted": deleted_workflows_id                
         }
 
-from starlette.background import BackgroundTask
 
 
 @router.get(
