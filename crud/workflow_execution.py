@@ -63,9 +63,11 @@ async def list_executed_workflows():
 async def get_workflow_execution_by_id(execution_id: int):
     workflow_execution = session.query(WorkflowExecution).filter(WorkflowExecution.id==execution_id).first()
     if workflow_execution is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Workflow execution with ID:{execution_id} was not found",
+        return Response(
+            success=False,
+            message=f"Invalid execution_id",
+            error_code=404,
+            data={}
         )
     
     data = {
@@ -91,7 +93,7 @@ async def get_workflow_execution_by_id(execution_id: int):
         )
     return {
         "success": True,
-        "message": f"Workflow execution with ID {execution_id} retrieved successfully",
+        "message": f"Workflow execution successfully retrieved",
         "data": data
     }
 
@@ -106,7 +108,7 @@ async def execute_workflow(registry_id: int, background_tasks: BackgroundTasks):
     if workflow_registry is None:
         return Response(
             success=False,
-            message=f"Workflow with Registry ID: {registry_id} was not found",
+            message=f"Invalid registry_id",
             error_code=404,
             data={}
         )
@@ -280,10 +282,13 @@ async def delete_workflow_execution(registry_id: int = None, reana_name: str = N
             session.delete(w)
             session.commit()
         except Exception as e:
-            raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Problem while deleting REANA workflow: " + str(e),
-        )
+            return Response(
+                success=False,
+                message=f"Problem while deleting REANA workflow: " + str(e),
+                error_code=403,
+                data={}
+            )
+
     
     if registry_id:
         message = f"Every workflow associated with registry_id:{registry_id} was successfully deleted"
@@ -310,7 +315,7 @@ async def download_outputs(reana_name: str, run_number:int):
     if workflow_execution is None:
         return Response(
             success=False,
-            message=f"Workflow with name: {reana_name} and run number: {run_number} was not found",
+            message=f"Invalid reana_name and reana_number combination",
             error_code=404,
             data={}
         )
@@ -318,7 +323,7 @@ async def download_outputs(reana_name: str, run_number:int):
     if workflow_execution.status != 'finished':
         return Response(
             success=False,
-            message=f"Workflow with name {reana_name} and run number {run_number} must be finished in order to download output files",
+            message=f"Workflow must be finished in order to download output files",
             error_code=409,
             data={}
         ) 
@@ -354,7 +359,7 @@ async def download_inputs(reana_name: str, run_number:int):
     if workflow_execution is None:
         return Response(
             success=False,
-            message=f"Workflow with name: {reana_name} and run number: {run_number} was not found",
+            message=f"Invalid reana_name and reana_number combination",
             error_code=404,
             data={}
         )
@@ -362,7 +367,7 @@ async def download_inputs(reana_name: str, run_number:int):
     if workflow_execution.status != 'finished':
         return Response(
             success=False,
-            message=f"Workflow with name {reana_name} and run number {run_number} must be finished in order to download input files",
+            message=f"Workflow must be finished in order to download input files",
             error_code=409,
             data={}
         ) 
@@ -378,7 +383,7 @@ async def download_inputs(reana_name: str, run_number:int):
     if input_content == b'{}':
         return Response(
             success=True,
-            message=f"Workflow with name: {reana_name} and run number: {run_number} does not have any input values (default were used)",
+            message=f"Workflow does not have any input values (default were used)",
             data={}
         )
 
