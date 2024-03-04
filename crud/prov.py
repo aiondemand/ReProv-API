@@ -70,11 +70,10 @@ async def track_provenance(reana_name: str, run_number:int):
 	# create entity for the whole workflow
 	workflow_entity = Entity(
 		type='workflow',
-		path=f"{workflow_execution.reana_id}/workflow.json",
+		path=f"/var/reana/users/00000000-0000-0000-0000-000000000000/workflows/{workflow_execution.reana_id}/workflow.json",
 		name='workflow.json',
 		size=spec_file['size']['human_readable'],
-		last_modified=datetime.fromisoformat(spec_file['last-modified']),
-		workflow_execution_id=workflow_execution.id
+		last_modified=datetime.fromisoformat(spec_file['last-modified'])
 	)
 
 	# create entities for the intermediate files
@@ -94,7 +93,7 @@ async def track_provenance(reana_name: str, run_number:int):
 	output_entities = [
 		Entity(
 			type='workflow_final_result_file',
-			path=f"{workflow_execution.reana_id}/o_file['name']",
+			path=o_file['name'],
 			name=o_file['name'].split('/')[-1],
 			size=o_file['size']['human_readable'],
 			last_modified=datetime.fromisoformat(o_file['last-modified']),
@@ -107,7 +106,7 @@ async def track_provenance(reana_name: str, run_number:int):
 	step_activities = [
 		Activity(
 			type='step_execution',
-			name=f"{workflow_execution.reana_id}/s.name",
+			name=s.name,
 			start_time=s.start_time,
 			end_time=s.end_time,
 			workflow_execution_id=workflow_execution.id
@@ -235,18 +234,6 @@ async def draw_provenance(reana_name: str, run_number:int):
 			activity_name = session.query(Activity.name).filter(Activity.id==u.activity_id).first()[0].replace(':','_')
 			doc.used(entity_name,activity_name)
 
-	for a in activities:
-		started_by = session.query(ActivityStartedBy).filter(ActivityStartedBy.activity_id==a.id).all()
-		for s in started_by:
-			entity_name = session.query(Entity.name).filter(Entity.id==s.entity_id).first()[0].replace(':','')
-			activity_name = session.query(Activity.name).filter(Activity.id==s.activity_id).first()[0].replace(':','')
-			doc.wasStartedBy(activity_name,entity_name)
-	for a in activities:
-		ended_by = session.query(ActivityEndedBy).filter(ActivityEndedBy.activity_id==a.id).all()
-		for e in ended_by:
-			entity_name = session.query(Entity.name).filter(Entity.id==e.entity_id).first()[0].replace(':','')
-			activity_name = session.query(Activity.name).filter(Activity.id==e.activity_id).first()[0].replace(':','')
-			doc.wasStartedBy(activity_name,entity_name)
 
 	png_name = f"{reana_name}:{run_number}-provenance.png"
 	dot = prov_to_dot(doc).write_png(png_name)
