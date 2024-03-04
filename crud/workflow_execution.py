@@ -26,16 +26,6 @@ router = APIRouter()
 )
 async def list_executed_workflows():
     workflow_executions = session.query(WorkflowExecution).all()
-    print(len(workflow_executions))
-    if workflow_executions is None:
-        return Response(
-            success=False,
-            message='No workflows have been executed',
-            error_code=404,
-            data={}
-        )
-
-
     data = {}
     for workflow_execution in workflow_executions:
         workflow_data = {
