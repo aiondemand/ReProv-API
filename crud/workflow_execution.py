@@ -1,12 +1,11 @@
 import asyncio
 import os
 from fastapi.responses import FileResponse
-from fastapi import APIRouter,HTTPException, BackgroundTasks, status
+from fastapi import APIRouter, BackgroundTasks
 from starlette.background import BackgroundTask
 from db.workflow_execution import WorkflowExecution, WorkflowExecutionStep
 from db.workflow_registry import WorkflowRegistry
-from db.init_db  import session
-from sqlalchemy.exc import IntegrityError
+from db.init_db import session
 from reana_client.api import client
 import tempfile
 from datetime import datetime
@@ -17,9 +16,10 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 router = APIRouter()
 
+
 @router.get(
-        "/",
-        description="List all workflows that have been executed",
+    "/",
+    description="List all workflows that have been executed",
 )
 async def list_executed_workflows():
     workflow_executions = session.query(WorkflowExecution).all()
@@ -33,9 +33,11 @@ async def list_executed_workflows():
             'reana_name': workflow_execution.reana_name,
             'reana_run_number': workflow_execution.reana_run_number,
             'registry_id': workflow_execution.registry_id,
-            'steps' : [] 
+            'steps': []
         }
-        workflow_execution_steps = session.query(WorkflowExecutionStep).filter(WorkflowExecutionStep.workflow_execution_id == workflow_execution.id).all()
+        workflow_execution_steps = session.query(WorkflowExecutionStep).filter(
+            WorkflowExecutionStep.workflow_execution_id == workflow_execution.id
+        ).all()
         for step in workflow_execution_steps:
             workflow_data['steps'].append(
                 {
@@ -46,27 +48,28 @@ async def list_executed_workflows():
                     'end_time': step.end_time
                 }
             )
-        data[f"{workflow_execution.reana_name}:{workflow_execution.reana_run_number}"] = workflow_data
+        name = f"{workflow_execution.reana_name}:{workflow_execution.reana_run_number}"
+        data[name] = workflow_data
     return Response(
         success=True,
         message='Workflow executions retrieved successfully',
         data=data
     )
 
+
 @router.get(
-        "/{execution_id}",
-        description="Get details of a specific workflow that was executed by its execution ID.",
+    "/{execution_id}",
+    description="Get details of a specific workflow that was executed by its execution ID.",
 )
 async def get_workflow_execution_by_id(execution_id: int):
-    workflow_execution = session.query(WorkflowExecution).filter(WorkflowExecution.id==execution_id).first()
+    workflow_execution = session.query(WorkflowExecution).filter(WorkflowExecution.id == execution_id).first()
     if workflow_execution is None:
         return Response(
             success=False,
-            message=f"Invalid execution_id",
+            message="Invalid execution_id",
             error_code=404,
             data={}
         )
-    
     data = {
         'execution_id': workflow_execution.id,
         'start_time': workflow_execution.start_time,
@@ -75,9 +78,11 @@ async def get_workflow_execution_by_id(execution_id: int):
         'reana_name': workflow_execution.reana_name,
         'reana_run_number': workflow_execution.reana_run_number,
         'registry_id': workflow_execution.registry_id,
-        'steps' : [] 
+        'steps': []
     }
-    workflow_execution_steps = session.query(WorkflowExecutionStep).filter(WorkflowExecutionStep.workflow_execution_id == workflow_execution.id).all()
+    workflow_execution_steps = session.query(WorkflowExecutionStep).filter(
+        WorkflowExecutionStep.workflow_execution_id == workflow_execution.id
+    ).all()
     for step in workflow_execution_steps:
         data['steps'].append(
             {
@@ -90,14 +95,14 @@ async def get_workflow_execution_by_id(execution_id: int):
         )
     return {
         "success": True,
-        "message": f"Workflow execution successfully retrieved",
+        "message": "Workflow execution successfully retrieved",
         "data": data
     }
 
-    
+
 @router.post(
-        "/execute/{registry_id}",
-        description="Execute workflow by invoking REANA system"
+    "/execute/{registry_id}",
+    description="Execute workflow by invoking REANA system"
 )
 async def execute_workflow(registry_id: int, background_tasks: BackgroundTasks):
     workflow_registry = session.query(WorkflowRegistry).filter(WorkflowRegistry.id == registry_id).first()
@@ -105,50 +110,49 @@ async def execute_workflow(registry_id: int, background_tasks: BackgroundTasks):
     if workflow_registry is None:
         return Response(
             success=False,
-            message=f"Invalid registry_id",
+            message="Invalid registry_id",
             error_code=404,
             data={}
         )
-    
-    with tempfile.NamedTemporaryFile(dir=os.getcwd(), suffix='.cwl',delete=False) as spec_temp_file:
+
+    with tempfile.NamedTemporaryFile(dir=os.getcwd(), suffix='.cwl', delete=False) as spec_temp_file:
         spec_temp_file.write(workflow_registry.spec_file_content)
-    
-    inputs = {"parameters":{}}
+
+    inputs = {"parameters": {}}
     if workflow_registry.input_file_content:
-        with tempfile.NamedTemporaryFile(dir=os.getcwd(), suffix='.yaml',delete=False) as input_temp_file:
+        with tempfile.NamedTemporaryFile(dir=os.getcwd(), suffix='.yaml', delete=False) as input_temp_file:
             input_temp_file.write(workflow_registry.input_file_content)
-        with open(os.path.join(os.getcwd(),input_temp_file.name)) as f:
+        with open(os.path.join(os.getcwd(), input_temp_file.name)) as f:
             for line in f:
                 k, v = line.strip().split(": ")
                 inputs["parameters"][k] = v
-    
-   
+
     try:
         reana_workflow = client.create_workflow_from_json(
             name=f"{workflow_registry.name}:{workflow_registry.version}",
             access_token=os.environ['REANA_ACCESS_TOKEN'],
-            workflow_file=os.path.join(os.getcwd(),spec_temp_file.name),
-            parameters = inputs if inputs["parameters"] != {} else None,
+            workflow_file=os.path.join(os.getcwd(), spec_temp_file.name),
+            parameters=inputs if inputs["parameters"] != {} else None,
             workflow_engine='cwl'
         )
     except Exception as e:
-        os.remove(os.path.join(os.getcwd(),spec_temp_file.name))
+        os.remove(os.path.join(os.getcwd(), spec_temp_file.name))
         if workflow_registry.input_file_content:
-            os.remove(os.path.join(os.getcwd(),input_temp_file.name))
+            os.remove(os.path.join(os.getcwd(), input_temp_file.name))
 
         return Response(
             success=False,
-            message=f"Problem while creating REANA workflow: " + str(e),
+            message="Problem while creating REANA workflow: " + str(e),
             error_code=503,
             data={}
         )
-        
+
     try:
 
         workflow_run = client.start_workflow(
             workflow=reana_workflow['workflow_name'],
-            access_token= os.environ['REANA_ACCESS_TOKEN'],
-            parameters = {}
+            access_token=os.environ['REANA_ACCESS_TOKEN'],
+            parameters={}
         )
         workflow_execution = WorkflowExecution(
             registry_id=registry_id,
@@ -161,22 +165,21 @@ async def execute_workflow(registry_id: int, background_tasks: BackgroundTasks):
         session.commit()
         session.refresh(workflow_execution)
     except Exception as e:
-        os.remove(os.path.join(os.getcwd(),spec_temp_file.name))
+        os.remove(os.path.join(os.getcwd(), spec_temp_file.name))
         if workflow_registry.input_file_content:
-            os.remove(os.path.join(os.getcwd(),input_temp_file.name))
+            os.remove(os.path.join(os.getcwd(), input_temp_file.name))
 
             return Response(
                 success=False,
-                message=f"Problem while starting REANA workflow: " + str(e),
+                message="Problem while starting REANA workflow: " + str(e),
                 error_code=503,
                 data={}
             )
 
     finally:
-        os.remove(os.path.join(os.getcwd(),spec_temp_file.name))
+        os.remove(os.path.join(os.getcwd(), spec_temp_file.name))
         if workflow_registry.input_file_content:
-            os.remove(os.path.join(os.getcwd(),input_temp_file.name))
-
+            os.remove(os.path.join(os.getcwd(), input_temp_file.name))
 
         data = {
             "execution_id": workflow_execution.id,
@@ -189,11 +192,11 @@ async def execute_workflow(registry_id: int, background_tasks: BackgroundTasks):
         }
         return Response(
             success=True,
-            message=f"New workflow started",
+            message="New workflow started",
             data=data
         )
-   
- 
+
+
 async def monitor_execution(reana_id):
     workflow_execution = session.query(WorkflowExecution).filter(WorkflowExecution.reana_id == reana_id).first()
     prev_step = None
@@ -204,7 +207,7 @@ async def monitor_execution(reana_id):
         )
 
         current_step = workflow_status['progress']['current_step_name']
-        if current_step != prev_step: # if a new step is running: 
+        if current_step != prev_step:  # if a new step is running:
             if prev_step is not None:
                 prev_workflow_execution_step = session.query(WorkflowExecutionStep).filter(
                     WorkflowExecutionStep.workflow_execution_id == workflow_execution.id,
@@ -213,8 +216,8 @@ async def monitor_execution(reana_id):
                 prev_workflow_execution_step.end_time = datetime.utcnow()
                 prev_workflow_execution_step.status = 'finished'
                 session.add(prev_workflow_execution_step)
-                session.commit()    
-            
+                session.commit()
+
             current_workflow_execution_step = WorkflowExecutionStep(
                 name=current_step,
                 workflow_execution_id=workflow_execution.id
@@ -224,7 +227,7 @@ async def monitor_execution(reana_id):
 
             session.add(current_workflow_execution_step)
             session.commit()
-      
+
         if workflow_status['status'] != workflow_execution.status:
             workflow_execution.status = workflow_status['status']
         if workflow_status['status'] == 'finished' or workflow_status['status'] == 'failed':
@@ -233,8 +236,8 @@ async def monitor_execution(reana_id):
         await asyncio.sleep(0.001)
 
     last_workflow_execution_step = session.query(WorkflowExecutionStep).filter(
-                    WorkflowExecutionStep.workflow_execution_id == workflow_execution.id,
-                    WorkflowExecutionStep.name == current_step,
+        WorkflowExecutionStep.workflow_execution_id == workflow_execution.id,
+        WorkflowExecutionStep.name == current_step,
     ).first()
     last_workflow_execution_step.end_time = datetime.utcnow()
     session.add(last_workflow_execution_step)
@@ -246,16 +249,15 @@ async def monitor_execution(reana_id):
     session.commit()
 
 
-
 @router.delete(
-        "/delete/",
-        description="Delete every workflow execution that was associated with a registry ID OR with a name provided by the execution system "
+    "/delete/",
+    description="Delete every workflow execution that was associated with a registry ID OR with a name provided by the execution system "
 )
 async def delete_workflow_execution(registry_id: int = None, reana_name: str = None):
     if registry_id and reana_name:
         return Response(
             success=False,
-            message=f"Either provide registry_id OR name but not both",
+            message="Either provide registry_id OR name but not both",
             error_code=403,
             data={}
         )
@@ -281,30 +283,29 @@ async def delete_workflow_execution(registry_id: int = None, reana_name: str = N
         except Exception as e:
             return Response(
                 success=False,
-                message=f"Problem while deleting REANA workflow: " + str(e),
+                message="Problem while deleting REANA workflow: " + str(e),
                 error_code=403,
                 data={}
             )
 
-    
     if registry_id:
         message = f"Every workflow associated with registry_id:{registry_id} was successfully deleted"
     else:
         message = f"Every workflow associated with name:{reana_name} was successfully deleted"
-    
+
     data = deleted_workflows_id
     return Response(
-            success=True,
-            message=message,
-            data=data
+        success=True,
+        message=message,
+        data=data
     )
-   
+
 
 @router.get(
-        "/outputs/",
-        description="Download outputs of an executed workflow",
+    "/outputs/",
+    description="Download outputs of an executed workflow",
 )
-async def download_outputs(reana_name: str, run_number:int):
+async def download_outputs(reana_name: str, run_number: int):
     workflow_execution = session.query(WorkflowExecution).filter(
         WorkflowExecution.reana_name == reana_name, WorkflowExecution.reana_run_number == run_number
     ).first()
@@ -312,7 +313,7 @@ async def download_outputs(reana_name: str, run_number:int):
     if workflow_execution is None:
         return Response(
             success=False,
-            message=f"Invalid reana_name and reana_number combination",
+            message="Invalid reana_name and reana_number combination",
             error_code=404,
             data={}
         )
@@ -320,16 +321,17 @@ async def download_outputs(reana_name: str, run_number:int):
     if workflow_execution.status != 'finished':
         return Response(
             success=False,
-            message=f"Workflow must be finished in order to download output files",
+            message="Workflow must be finished in order to download output files",
             error_code=409,
             data={}
-        ) 
+        )
 
-    (output_content,file_name, is_zipped) = client.download_file(
+    (output_content, file_name, is_zipped) = client.download_file(
         workflow=workflow_execution.reana_id,
         file_name='outputs',
         access_token=os.environ['REANA_ACCESS_TOKEN']
     )
+
     def _delete_tmp_file():
         os.unlink(temp_file.name)
 
@@ -337,18 +339,17 @@ async def download_outputs(reana_name: str, run_number:int):
         temp_file.write(output_content)
 
         return FileResponse(
-            temp_file.name, 
+            temp_file.name,
             filename='outputs.zip',
             background=BackgroundTask(_delete_tmp_file),
         )
 
 
-
 @router.get(
-        "/inputs/",
-        description="Download inputs of an executed workflow",
+    "/inputs/",
+    description="Download inputs of an executed workflow",
 )
-async def download_inputs(reana_name: str, run_number:int):
+async def download_inputs(reana_name: str, run_number: int):
     workflow_execution = session.query(WorkflowExecution).filter(
         WorkflowExecution.reana_name == reana_name, WorkflowExecution.reana_run_number == run_number
     ).first()
@@ -356,7 +357,7 @@ async def download_inputs(reana_name: str, run_number:int):
     if workflow_execution is None:
         return Response(
             success=False,
-            message=f"Invalid reana_name and reana_number combination",
+            message="Invalid reana_name and reana_number combination",
             error_code=404,
             data={}
         )
@@ -364,23 +365,24 @@ async def download_inputs(reana_name: str, run_number:int):
     if workflow_execution.status != 'finished':
         return Response(
             success=False,
-            message=f"Workflow must be finished in order to download input files",
+            message="Workflow must be finished in order to download input files",
             error_code=409,
             data={}
-        ) 
+        )
 
-    (input_content,file_name, _) = client.download_file(
+    (input_content, file_name, _) = client.download_file(
         workflow=workflow_execution.reana_id,
         file_name='inputs.json',
         access_token=os.environ['REANA_ACCESS_TOKEN']
     )
+
     def _delete_tmp_file():
         os.unlink(temp_file.name)
 
     if input_content == b'{}':
         return Response(
             success=True,
-            message=f"Workflow does not have any input values (default were used)",
+            message="Workflow does not have any input values (default were used)",
             data={}
         )
 
@@ -388,8 +390,7 @@ async def download_inputs(reana_name: str, run_number:int):
         temp_file.write(input_content)
 
         return FileResponse(
-            temp_file.name, 
+            temp_file.name,
             filename=file_name,
             background=BackgroundTask(_delete_tmp_file),
         )
-

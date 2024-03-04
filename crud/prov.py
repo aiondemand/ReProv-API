@@ -1,33 +1,30 @@
 import os
-import tempfile
 import pandas as pd
 from datetime import datetime
 from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
-from fastapi import APIRouter, Depends, HTTPException, status
-from db.prov import Entity, Activity,EntityUsedBy,EntityGeneratedBy,ActivityStartedBy,ActivityEndedBy
-from db.init_db  import session
+from fastapi import APIRouter, HTTPException, status
+from db.prov import Entity, Activity, EntityUsedBy, EntityGeneratedBy
+from db.init_db import session
 from db.workflow_execution import WorkflowExecution, WorkflowExecutionStep
 from db.workflow_registry import WorkflowRegistry
 from ruamel.yaml import YAML
 from prov.model import ProvDocument
 from prov.dot import prov_to_dot
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
 from reana_client.api import client
 
 router = APIRouter()
 
 
-
 @router.get(
 	"/capture/",
-	description="Capture provenance for workflow with specific reana_name and run number",
+	description="Capture provenance for workflow with specific name & run number",
 )
-async def track_provenance(reana_name: str, run_number:int):
-	
-	
-	workflow_execution = session.query(WorkflowExecution).filter(WorkflowExecution.reana_name == reana_name, WorkflowExecution.reana_run_number == run_number).first()
+async def track_provenance(reana_name: str, run_number: int):
+	workflow_execution = session.query(WorkflowExecution).filter(
+		WorkflowExecution.reana_name == reana_name, 
+		WorkflowExecution.reana_run_number == run_number
+	).first()
 	if workflow_execution is None:
 		raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

@@ -12,7 +12,7 @@ class Response:
             "data": self.data
         }
         if self.error_code is not None:
-            response_dict["error_code"] = self.error_code 
+            response_dict["error_code"] = self.error_code
         return response_dict
 
     @classmethod

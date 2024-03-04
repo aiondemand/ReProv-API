@@ -1,10 +1,7 @@
-from typing import List, Union
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum
 from datetime import datetime
 from .init_db import Base
-from .workflow_execution import WorkflowExecution
 from sqlalchemy.orm import relationship
-
 
 
 class Entity(Base):
@@ -18,8 +15,9 @@ class Entity(Base):
     last_modified = Column(DateTime, nullable=True)
 
     workflow_execution_id = Column(Integer, ForeignKey('workflow_execution.id'))
-    started = relationship("Activity",secondary='activity_started_by')
-    ended = relationship("Activity",secondary='activity_ended_by')
+    started = relationship("Activity", secondary='activity_started_by')
+    ended = relationship("Activity", secondary='activity_ended_by')
+
 
 class Activity(Base):
     __tablename__ = 'activity'
@@ -27,41 +25,42 @@ class Activity(Base):
     id = Column(Integer, autoincrement=True, primary_key=True)
     type = Column(Enum('workflow_execution', 'step_execution'))
     name = Column(String, nullable=False)
-    start_time = Column(DateTime, default=datetime.utcnow, nullable=False)  
+    start_time = Column(DateTime, default=datetime.utcnow, nullable=False)
     end_time = Column(DateTime, nullable=True)
 
-    workflow_execution_id = Column(Integer, ForeignKey('workflow_execution.id'))  
+    workflow_execution_id = Column(Integer, ForeignKey('workflow_execution.id'))
     # Use backref directly
-    generated = relationship("Entity",secondary='entity_generated_by')
+    generated = relationship("Entity", secondary='entity_generated_by')
     used = relationship("Entity", secondary='entity_used_by')
+
 
 class EntityUsedBy(Base):
     __tablename__ = "entity_used_by"
 
     id = Column(Integer, primary_key=True)
-    entity_id = Column(Integer, ForeignKey('entity.id'))  
-    activity_id = Column(Integer, ForeignKey('activity.id'))  
+    entity_id = Column(Integer, ForeignKey('entity.id'))
+    activity_id = Column(Integer, ForeignKey('activity.id'))
 
 
 class EntityGeneratedBy(Base):
     __tablename__ = "entity_generated_by"
 
     id = Column(Integer, primary_key=True)
-    entity_id = Column(Integer, ForeignKey('entity.id'))  
-    activity_id = Column(Integer, ForeignKey('activity.id'))  
+    entity_id = Column(Integer, ForeignKey('entity.id'))
+    activity_id = Column(Integer, ForeignKey('activity.id'))
 
 
 class ActivityStartedBy(Base):
     __tablename__ = "activity_started_by"
 
     id = Column(Integer, primary_key=True)
-    activity_id = Column(Integer, ForeignKey('activity.id'))  
-    entity_id = Column(Integer, ForeignKey('entity.id')) 
+    activity_id = Column(Integer, ForeignKey('activity.id'))
+    entity_id = Column(Integer, ForeignKey('entity.id'))
 
 
 class ActivityEndedBy(Base):
     __tablename__ = "activity_ended_by"
 
     id = Column(Integer, primary_key=True)
-    activity_id = Column(Integer, ForeignKey('activity.id'))  
-    entity_id = Column(Integer, ForeignKey('entity.id')) 
+    activity_id = Column(Integer, ForeignKey('activity.id'))
+    entity_id = Column(Integer, ForeignKey('entity.id'))
