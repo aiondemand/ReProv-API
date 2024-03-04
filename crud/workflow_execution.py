@@ -14,6 +14,7 @@ from reana_client.api import client
 import tempfile
 from datetime import datetime
 import urllib3
+from utils.response import Response
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
@@ -25,15 +26,20 @@ router = APIRouter()
 )
 async def list_executed_workflows():
     workflow_executions = session.query(WorkflowExecution).all()
+    print(len(workflow_executions))
     if workflow_executions is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No workflows have been executed",
+        return Response(
+            success=False,
+            message='No workflows have been executed',
+            error_code=404,
+            data={}
         )
-    
+
+
+    data = {}
     for workflow_execution in workflow_executions:
-        data = {
-            'id': workflow_execution.id,
+        workflow_data = {
+            'execution_id': workflow_execution.id,
             'start_time': workflow_execution.start_time,
             'end_time': workflow_execution.end_time,
             'status': workflow_execution.status,
@@ -44,16 +50,21 @@ async def list_executed_workflows():
         }
         workflow_execution_steps = session.query(WorkflowExecutionStep).filter(WorkflowExecutionStep.workflow_execution_id == workflow_execution.id).all()
         for step in workflow_execution_steps:
-            data['steps'].append(
+            workflow_data['steps'].append(
                 {
-                    'id': step.id,
+                    'step_id': step.id,
                     'name': step.name,
                     'status': step.status,
                     'start_time': step.start_time,
                     'end_time': step.end_time
                 }
             )
-    return data
+        data[f"{workflow_execution.reana_name}:{workflow_execution.reana_run_number}"] = workflow_data
+    return Response(
+        success=True,
+        message='Workflow executions retrieved successfully',
+        data=data
+    )
 
 @router.get(
         "/{execution_id}",
@@ -68,7 +79,7 @@ async def get_workflow_execution_by_id(execution_id: int):
         )
     
     data = {
-        'id': workflow_execution.id,
+        'execution_id': workflow_execution.id,
         'start_time': workflow_execution.start_time,
         'end_time': workflow_execution.end_time,
         'status': workflow_execution.status,
@@ -81,14 +92,18 @@ async def get_workflow_execution_by_id(execution_id: int):
     for step in workflow_execution_steps:
         data['steps'].append(
             {
-                'id': step.id,
+                'step_id': step.id,
                 'name': step.name,
                 'status': step.status,
                 'start_time': step.start_time,
                 'end_time': step.end_time
             }
         )
-    return data
+    return {
+        "success": True,
+        "message": f"Workflow execution with ID {execution_id} retrieved successfully",
+        "data": data
+    }
 
     
 @router.post(
@@ -99,9 +114,11 @@ async def execute_workflow(registry_id: int, background_tasks: BackgroundTasks):
     workflow_registry = session.query(WorkflowRegistry).filter(WorkflowRegistry.id == registry_id).first()
 
     if workflow_registry is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Workflow with ID: {registry_id} was not found",
+        return Response(
+            success=False,
+            message=f"Workflow with Registry ID: {registry_id} was not found",
+            error_code=404,
+            data={}
         )
     
     with tempfile.NamedTemporaryFile(dir=os.getcwd(), suffix='.cwl',delete=False) as spec_temp_file:
@@ -129,10 +146,14 @@ async def execute_workflow(registry_id: int, background_tasks: BackgroundTasks):
         os.remove(os.path.join(os.getcwd(),spec_temp_file.name))
         if workflow_registry.input_file_content:
             os.remove(os.path.join(os.getcwd(),input_temp_file.name))
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Problem while creating REANA workflow: " + str(e),
+
+        return Response(
+            success=False,
+            message=f"Problem while creating REANA workflow: " + str(e),
+            error_code=503,
+            data={}
         )
+        
     try:
 
         workflow_run = client.start_workflow(
@@ -155,25 +176,33 @@ async def execute_workflow(registry_id: int, background_tasks: BackgroundTasks):
         if workflow_registry.input_file_content:
             os.remove(os.path.join(os.getcwd(),input_temp_file.name))
 
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Problem while starting REANA workflow: " + str(e),
-        )
+            return Response(
+                success=False,
+                message=f"Problem while starting REANA workflow: " + str(e),
+                error_code=503,
+                data={}
+            )
 
     finally:
         os.remove(os.path.join(os.getcwd(),spec_temp_file.name))
         if workflow_registry.input_file_content:
             os.remove(os.path.join(os.getcwd(),input_temp_file.name))
-        return {
-            "New Workflow started":{
-                "ID": workflow_execution.id,
-                "Name": workflow_registry.name,
-                "Version": workflow_registry.version,
-                "REANA Name": workflow_execution.reana_name,
-                "REANA ID": workflow_execution.reana_id,
-                "Run Number": workflow_execution.reana_run_number,
-            } 
+
+
+        data = {
+            "execution_id": workflow_execution.id,
+            "name": workflow_registry.name,
+            "version": workflow_registry.version,
+            "reana_name": workflow_execution.reana_name,
+            "reana_id": workflow_execution.reana_id,
+            "run_number": workflow_execution.reana_run_number,
+
         }
+        return Response(
+            success=True,
+            message=f"New workflow started",
+            data=data
+        )
    
  
 async def monitor_execution(reana_id):
@@ -235,10 +264,13 @@ async def monitor_execution(reana_id):
 )
 async def delete_workflow_execution(registry_id: int = None, reana_name: str = None):
     if registry_id and reana_name:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Either provide registry_id OR name but not both"
+        return Response(
+            success=False,
+            message=f"Either provide registry_id OR name but not both",
+            error_code=403,
+            data={}
         )
+
     deleted_workflows_id = []
     if registry_id:
         workflows = session.query(WorkflowExecution).filter(WorkflowExecution.registry_id == registry_id).all()
@@ -267,12 +299,14 @@ async def delete_workflow_execution(registry_id: int = None, reana_name: str = N
         message = f"Every workflow associated with registry_id:{registry_id} was successfully deleted"
     else:
         message = f"Every workflow associated with name:{reana_name} was successfully deleted"
-    return {
-            "Message": message,
-            "Workflow executions deleted": deleted_workflows_id                
-        }
-
-
+    
+    data = deleted_workflows_id
+    return Response(
+            success=True,
+            message=message,
+            data=data
+    )
+   
 
 @router.get(
         "/outputs/",
@@ -284,10 +318,20 @@ async def download_outputs(reana_name: str, run_number:int):
     ).first()
 
     if workflow_execution is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Workflow with name: {reana_name} and run number: {run_number} was not found"
+        return Response(
+            success=False,
+            message=f"Workflow with name: {reana_name} and run number: {run_number} was not found",
+            error_code=404,
+            data={}
         )
+
+    if workflow_execution.status != 'finished':
+        return Response(
+            success=False,
+            message=f"Workflow with name {reana_name} and run number {run_number} must be finished in order to download output files",
+            error_code=409,
+            data={}
+        ) 
 
     (output_content,file_name, is_zipped) = client.download_file(
         workflow=workflow_execution.reana_id,
@@ -318,10 +362,21 @@ async def download_inputs(reana_name: str, run_number:int):
     ).first()
 
     if workflow_execution is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Workflow with name: {reana_name} and run number: {run_number} was not found"
+        return Response(
+            success=False,
+            message=f"Workflow with name: {reana_name} and run number: {run_number} was not found",
+            error_code=404,
+            data={}
         )
+
+    if workflow_execution.status != 'finished':
+        return Response(
+            success=False,
+            message=f"Workflow with name {reana_name} and run number {run_number} must be finished in order to download input files",
+            error_code=409,
+            data={}
+        ) 
+
     (input_content,file_name, _) = client.download_file(
         workflow=workflow_execution.reana_id,
         file_name='inputs.json',
@@ -331,9 +386,10 @@ async def download_inputs(reana_name: str, run_number:int):
         os.unlink(temp_file.name)
 
     if input_content == b'{}':
-          raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Input file was not found (default values were used)"
+        return Response(
+            success=True,
+            message=f"Workflow with name: {reana_name} and run number: {run_number} does not have any input values (default were used)",
+            data={}
         )
 
     with tempfile.NamedTemporaryFile(dir=os.getcwd(), delete=False) as temp_file:
