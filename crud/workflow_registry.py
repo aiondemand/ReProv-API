@@ -1,7 +1,6 @@
 import os
 from fastapi import APIRouter, UploadFile, File, HTTPException, status, Depends
 from db.workflow_registry import WorkflowRegistry, WorkflowRegistryModel
-from db.user import User
 from db.init_db  import session
 from sqlalchemy.exc import IntegrityError
 from utils.wrap_cwl import wrap

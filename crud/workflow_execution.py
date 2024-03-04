@@ -1,13 +1,10 @@
 import asyncio
 import os
-import zipfile
 from fastapi.responses import FileResponse
 from fastapi import APIRouter,HTTPException, BackgroundTasks, status
 from starlette.background import BackgroundTask
-from fastapi_utils.tasks import repeat_every
 from db.workflow_execution import WorkflowExecution, WorkflowExecutionStep
 from db.workflow_registry import WorkflowRegistry
-from db.user import User
 from db.init_db  import session
 from sqlalchemy.exc import IntegrityError
 from reana_client.api import client
