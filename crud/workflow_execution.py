@@ -59,7 +59,7 @@ async def list_executed_workflows():
         "/{execution_id}",
         description="Get details of a specific workflow that was executed by its execution ID.",
 )
-async def get_workflow_by_id(execution_id: int):
+async def get_workflow_execution_by_id(execution_id: int):
     workflow_execution = session.query(WorkflowExecution).filter(WorkflowExecution.id==execution_id).first()
     if workflow_execution is None:
         raise HTTPException(
