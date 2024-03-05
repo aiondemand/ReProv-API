@@ -1,17 +1,18 @@
 import os
 import pandas as pd
 from datetime import datetime
-from fastapi.responses import FileResponse
+from prov.model import ProvDocument
+from prov.dot import prov_to_dot
 from starlette.background import BackgroundTask
-from fastapi import APIRouter, HTTPException, status
+from fastapi.responses import FileResponse
+from fastapi import APIRouter
 from db.prov import Entity, Activity, EntityUsedBy, EntityGeneratedBy
 from db.init_db import session
 from db.workflow_execution import WorkflowExecution, WorkflowExecutionStep
 from db.workflow_registry import WorkflowRegistry
 from ruamel.yaml import YAML
-from prov.model import ProvDocument
-from prov.dot import prov_to_dot
 from reana_client.api import client
+from utils.response import Response
 
 router = APIRouter()
 
@@ -26,24 +27,29 @@ async def track_provenance(reana_name: str, run_number: int):
         WorkflowExecution.reana_run_number == run_number
     ).first()
     if workflow_execution is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Workflow with name {reana_name} and run number {run_number} was not found",
+        return Response(
+            success=False,
+            message="Invalid reana_name and reana_number combination",
+            error_code=404,
+            data={}
         )
 
     execution_status = workflow_execution.status
-
     if execution_status != 'finished':
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Workflow with name {reana_name} and run number {run_number} must be finished in order to capture provenance",
+        return Response(
+            success=False,
+            message="Workflow must be finished in order to capture provenance",
+            error_code=409,
+            data={}
         )
 
     previously_captured = session.query(Activity).filter(Activity.workflow_execution_id == workflow_execution.id).first()
     if previously_captured:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Provenance for workflow with name {reana_name} and run number {run_number} was captured before",
+        return Response(
+            success=False,
+            message="Provenance was captured before",
+            error_code=403,
+            data={}
         )
 
     workflow_execution_steps = session.query(WorkflowExecutionStep).filter(WorkflowExecutionStep.workflow_execution_id == workflow_execution.id).all()
@@ -160,13 +166,11 @@ async def track_provenance(reana_name: str, run_number: int):
     workflow_entity.ended.append(workflow_activity)
 
     session.commit()
-
-    return {
-        "Provenance was succesfully captured for workflow with": {
-            "Reana Name": reana_name,
-            "Run Number": run_number
-        }
-    }
+    return Response(
+        success=True,
+        message='Provenance retrieved successfully',
+        data={}
+    )
 
 
 @router.get(
@@ -179,11 +183,12 @@ async def draw_provenance(reana_name: str, run_number: int):
         WorkflowExecution.reana_run_number == run_number
     ).first()
     if workflow_execution is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Workflow with name {reana_name} and run number {run_number} was not found",
+        return Response(
+            success=False,
+            message="Invalid reana_name and reana_number combination",
+            error_code=404,
+            data={}
         )
-
     activities = session.query(Activity).filter(
         Activity.workflow_execution_id == workflow_execution.id
     ).all()
