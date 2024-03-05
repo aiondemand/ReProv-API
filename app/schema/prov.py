@@ -9,8 +9,8 @@ class Entity(Base):
 
     id = Column(Integer, autoincrement=True, primary_key=True)
     type = Column(Enum('workflow', 'workflow_intermediate_result_file', 'workflow_final_result_file'))
-    path = Column(String, nullable=False)
-    name = Column(String, nullable=False)
+    path = Column(String(255), nullable=False)
+    name = Column(String(255), nullable=False)
     size = Column(Integer, nullable=True)
     last_modified = Column(DateTime, nullable=True)
 
@@ -24,7 +24,7 @@ class Activity(Base):
 
     id = Column(Integer, autoincrement=True, primary_key=True)
     type = Column(Enum('workflow_execution', 'step_execution'))
-    name = Column(String, nullable=False)
+    name = Column(String(255), nullable=False)
     start_time = Column(DateTime, default=datetime.utcnow, nullable=False)
     end_time = Column(DateTime, nullable=True)
 

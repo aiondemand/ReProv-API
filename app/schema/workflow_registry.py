@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String
+from sqlalchemy.dialects.mysql import LONGTEXT
 from .init_db import Base
 from pydantic import BaseModel
 
@@ -18,7 +19,7 @@ class WorkflowRegistry(Base):
     #  )
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)  # PK of table
-    name = Column(String, nullable=False)
-    version = Column(String, nullable=False)
-    spec_file_content = Column(String, nullable=False)
-    input_file_content = Column(String, nullable=True)
+    name = Column(String(255), nullable=False)
+    version = Column(String(255), nullable=False)
+    spec_file_content = Column(LONGTEXT, nullable=False)
+    input_file_content = Column(LONGTEXT, nullable=True)
