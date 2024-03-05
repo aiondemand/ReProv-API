@@ -6,10 +6,10 @@ from prov.dot import prov_to_dot
 from starlette.background import BackgroundTask
 from fastapi.responses import FileResponse
 from fastapi import APIRouter
-from db.prov import Entity, Activity, EntityUsedBy, EntityGeneratedBy
-from db.init_db import session
-from db.workflow_execution import WorkflowExecution, WorkflowExecutionStep
-from db.workflow_registry import WorkflowRegistry
+from schema.prov import Entity, Activity, EntityUsedBy, EntityGeneratedBy
+from schema.init_db import session
+from schema.workflow_execution import WorkflowExecution, WorkflowExecutionStep
+from schema.workflow_registry import WorkflowRegistry
 from ruamel.yaml import YAML
 from reana_client.api import client
 from utils.response import Response

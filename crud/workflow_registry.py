@@ -1,7 +1,7 @@
 from utils.response import Response
 from fastapi import APIRouter, UploadFile, File, Depends
-from db.workflow_registry import WorkflowRegistry, WorkflowRegistryModel
-from db.init_db import session
+from schema.workflow_registry import WorkflowRegistry, WorkflowRegistryModel
+from schema.init_db import session
 from sqlalchemy.exc import IntegrityError
 from utils.wrap_cwl import wrap
 from ruamel.yaml import YAML

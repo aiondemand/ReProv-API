@@ -3,9 +3,9 @@ import os
 from fastapi.responses import FileResponse
 from fastapi import APIRouter, BackgroundTasks
 from starlette.background import BackgroundTask
-from db.workflow_execution import WorkflowExecution, WorkflowExecutionStep
-from db.workflow_registry import WorkflowRegistry
-from db.init_db import session
+from schema.workflow_execution import WorkflowExecution, WorkflowExecutionStep
+from schema.workflow_registry import WorkflowRegistry
+from schema.init_db import session
 from reana_client.api import client
 import tempfile
 from datetime import datetime

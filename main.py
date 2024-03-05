@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from db.init_db import engine, Base
+from schema.init_db import engine, Base
 from crud.workflow_registry import router as workflow_registry_router
 from crud.workflow_execution import router as workflow_execution_router
 from crud.prov import router as prov_router
