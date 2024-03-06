@@ -2,25 +2,20 @@ version: '3'
 
 services:
   app:
+    env_file:
+      - app/.env
     build: .
     ports:
       - "8000:8000"
     depends_on:
       - db
-    environment:
-      REANA_SERVER_URL: https://localhost:30443
-      REANA_ACCESS_TOKEN: NLrDUjT5NWAMLQ
-      DATABASE_URL: mysql://user:password@db:3306/db_name
 
   db:
+    env_file:
+      - app/.env
     image: mysql:latest
     ports:
       - "3306:3306"
-    environment:
-      MYSQL_ROOT_PASSWORD: root_password
-      MYSQL_DATABASE: db_name
-      MYSQL_USER: user
-      MYSQL_PASSWORD: password
     volumes:
       - db_data:/var/lib/mysql
 
