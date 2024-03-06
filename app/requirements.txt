@@ -1,0 +1,12 @@
+fastapi==0.110.0
+pandas==2.2.1
+pydantic<2.0
+reana_client==0.9.2
+ruamel.base==1.0.0
+SQLAlchemy<2.0.0
+starlette==0.36.3
+urllib3<2.0.0
+uvicorn
+python-multipart
+pymysql
+cryptography

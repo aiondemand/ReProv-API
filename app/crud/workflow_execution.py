@@ -115,18 +115,18 @@ async def execute_workflow(registry_id: int, background_tasks: BackgroundTasks):
             data={}
         )
 
+    print(os.environ['REANA_ACCESS_TOKEN'])
     with tempfile.NamedTemporaryFile(dir=os.getcwd(), suffix='.cwl', delete=False) as spec_temp_file:
-        spec_temp_file.write(workflow_registry.spec_file_content)
+        spec_temp_file.write(workflow_registry.spec_file_content.encode('utf-8'))
 
     inputs = {"parameters": {}}
     if workflow_registry.input_file_content:
         with tempfile.NamedTemporaryFile(dir=os.getcwd(), suffix='.yaml', delete=False) as input_temp_file:
-            input_temp_file.write(workflow_registry.input_file_content)
+            input_temp_file.write(workflow_registry.input_file_content.encode('utf-8'))
         with open(os.path.join(os.getcwd(), input_temp_file.name)) as f:
             for line in f:
                 k, v = line.strip().split(": ")
                 inputs["parameters"][k] = v
-
     try:
         reana_workflow = client.create_workflow_from_json(
             name=f"{workflow_registry.name}:{workflow_registry.version}",
@@ -135,6 +135,7 @@ async def execute_workflow(registry_id: int, background_tasks: BackgroundTasks):
             parameters=inputs if inputs["parameters"] != {} else None,
             workflow_engine='cwl'
         )
+
     except Exception as e:
         os.remove(os.path.join(os.getcwd(), spec_temp_file.name))
         if workflow_registry.input_file_content:
@@ -168,7 +169,6 @@ async def execute_workflow(registry_id: int, background_tasks: BackgroundTasks):
         os.remove(os.path.join(os.getcwd(), spec_temp_file.name))
         if workflow_registry.input_file_content:
             os.remove(os.path.join(os.getcwd(), input_temp_file.name))
-
             return Response(
                 success=False,
                 message="Problem while starting REANA workflow: " + str(e),
@@ -240,6 +240,7 @@ async def monitor_execution(reana_id):
         WorkflowExecutionStep.name == current_step,
     ).first()
     last_workflow_execution_step.end_time = datetime.utcnow()
+    last_workflow_execution_step.status = 'finished'
     session.add(last_workflow_execution_step)
     session.commit()
 

@@ -21,7 +21,7 @@ async def list_workflows(skip: int = 0, limit: int = 10):
             'registry_id': w.id,
             'name': w.name,
             'version': w.version,
-            'spec_file_content': yaml.load(w.spec_file_content.decode('utf-8')),
+            'spec_file_content': yaml.load(w.spec_file_content),
             'input_file_content': w.input_file_content,
         } for w in workflows
     ]
@@ -51,7 +51,7 @@ async def get_workflow_details(registry_id: int):
         'registry_id': workflow.id,
         'name': workflow.name,
         'version': workflow.version,
-        'spec_file_content': yaml.load(workflow.spec_file_content.decode('utf-8')),
+        'spec_file_content': yaml.load(workflow.spec_file_content),
         'input_file_content': workflow.input_file_content,
     }
     return Response(
