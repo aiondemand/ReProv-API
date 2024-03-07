@@ -1,0 +1,98 @@
+{
+    "realm": "test-provenance",
+    "enabled": true,
+    "displayName": "Test Provenance Realm",
+    "groups": [
+      {
+        "name": "test-group",
+        "path": "/test-group",
+        "attributes": {}
+      }
+    ],
+    "users": [
+      {
+        "username": "user1",
+        "enabled": true,
+        "emailVerified": false,
+        "firstName": "User",
+        "lastName": "One",
+        "email": "user1@example.com",
+        "attributes": {},
+        "groups": ["/test-group"],
+        "credentials": [
+          {
+            "type": "password",
+            "value": "password1",
+            "temporary": false
+          }
+        ]
+      },
+      {
+        "username": "user2",
+        "enabled": true,
+        "emailVerified": false,
+        "firstName": "User",
+        "lastName": "Two",
+        "email": "user2@example.com",
+        "attributes": {},
+        "groups": ["/test-group"],
+        "credentials": [
+          {
+            "type": "password",
+            "value": "password2",
+            "temporary": false
+          }
+        ]
+      },
+      {
+        "username": "user3",
+        "enabled": true,
+        "emailVerified": false,
+        "firstName": "User",
+        "lastName": "Three",
+        "email": "user3@example.com",
+        "attributes": {},
+        
+        "credentials": [
+          {
+            "type": "password",
+            "value": "password3",
+            "temporary": false
+          }
+        ]
+      },
+      {
+        "username": "user4",
+        "enabled": true,
+        "emailVerified": false,
+        "firstName": "User",
+        "lastName": "Four",
+        "email": "user4@example.com",
+        "attributes": {},
+        "credentials": [
+          {
+            "type": "password",
+            "value": "password4",
+            "temporary": false
+          }
+        ]
+      },
+      {
+        "username": "user5",
+        "enabled": true,
+        "emailVerified": false,
+        "firstName": "User",
+        "lastName": "Five",
+        "email": "user5@example.com",
+        "attributes": {},
+        "credentials": [
+          {
+            "type": "password",
+            "value": "password5",
+            "temporary": false
+          }
+        ]
+      }
+    ]
+  }
+  
