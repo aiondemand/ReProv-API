@@ -17,8 +17,6 @@ services:
     image: mysql:latest
     env_file:
       - app/.env
-    environment:
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
     ports:
       - "3306:3306"
     volumes:
