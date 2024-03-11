@@ -423,6 +423,93 @@
       "clientRoles": {}
     }
   ],
+  "users": [
+    {
+      "username": "user1",
+      "enabled": true,
+      "emailVerified": false,
+      "firstName": "User",
+      "lastName": "One",
+      "email": "user1@example.com",
+      "attributes": {},
+      "groups": ["group1"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password1",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "user2",
+      "enabled": true,
+      "emailVerified": false,
+      "firstName": "User",
+      "lastName": "Two",
+      "email": "user2@example.com",
+      "attributes": {},
+      "groups": ["group1"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password2",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "user3",
+      "enabled": true,
+      "emailVerified": false,
+      "firstName": "User",
+      "lastName": "Three",
+      "email": "user3@example.com",
+      "attributes": {},
+      "groups": ["group1"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password3",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "user4",
+      "enabled": true,
+      "emailVerified": false,
+      "firstName": "User",
+      "lastName": "Four",
+      "email": "user4@example.com",
+      "attributes": {},
+      "groups": ["group2"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password4",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "user5",
+      "enabled": true,
+      "emailVerified": false,
+      "firstName": "User",
+      "lastName": "Five",
+      "email": "user5@example.com",
+      "attributes": {},
+      "groups": ["group2"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password5",
+          "temporary": false
+        }
+      ]
+    }
+  ],
   "defaultRole": {
     "id": "5d327973-5579-4e43-8d5a-500cb88eea3f",
     "name": "default-roles-api",
