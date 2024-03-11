@@ -40,7 +40,7 @@ services:
       - start-dev 
       - --import-realm
     volumes:
-      - ./app/authentication/keycloak-realm.json:/opt/keycloak/data/import/realm.json
+      - ./app/authentication/prov-realm.json:/opt/keycloak/data/import/realm.json
 
 volumes:
   db_data:
