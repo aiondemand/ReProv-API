@@ -37,7 +37,7 @@ services:
       KEYCLOAK_ADMIN: admin 
       KEYCLOAK_ADMIN_PASSWORD: admin
     command: 
-      - start-dev 
+      - start-dev
       - --import-realm
     volumes:
       - ./app/authentication/prov-realm.json:/opt/keycloak/data/import/realm.json

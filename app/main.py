@@ -3,6 +3,7 @@ from schema.init_db import engine, Base
 from crud.workflow_registry import router as workflow_registry_router
 from crud.workflow_execution import router as workflow_execution_router
 from crud.prov import router as prov_router
+from crud.auth import router as auth_router
 
 
 def create_tables():
@@ -20,7 +21,16 @@ def create_routers(app):
         prefix="/workflow_execution",
         tags=["workflow_execution"]
     )
-    app.include_router(prov_router, prefix="/provenance", tags=["provenance"])
+    app.include_router(
+        prov_router, 
+        prefix="/provenance", 
+        tags=["provenance"]
+    )
+    app.include_router(
+        auth_router, 
+        prefix="/auth", 
+        tags=["auth"]
+    )
 
 
 def start_application():
