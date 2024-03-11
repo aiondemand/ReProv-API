@@ -16,6 +16,9 @@ class WorkflowExecution(Base):
 
     registry_id = Column(Integer, ForeignKey("workflow_registry.id"))
 
+    # Add username here as well because user A from group G can register a workflow but user B from group G can execute it
+    group = Column(String(255), nullable=False)
+
 
 class WorkflowExecutionStep(Base):
     __tablename__ = "workflow_execution_step"

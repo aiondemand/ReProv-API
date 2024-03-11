@@ -12,7 +12,7 @@ from schema.workflow_execution import WorkflowExecution, WorkflowExecutionStep
 from schema.workflow_registry import WorkflowRegistry
 from ruamel.yaml import YAML
 from reana_client.api import client
-from utils.response import Response
+from models.response import Response
 
 router = APIRouter()
 
