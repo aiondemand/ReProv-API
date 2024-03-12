@@ -6,11 +6,8 @@ from starlette.background import BackgroundTask
 from schema.workflow_execution import WorkflowExecution, WorkflowExecutionStep
 from schema.workflow_registry import WorkflowRegistry
 from schema.init_db import session
-<<<<<<< Updated upstream
 from authentication.auth import authenticate_user
 from models.user import User
-=======
->>>>>>> Stashed changes
 from utils.wrap_cwl import wrap
 from reana_client.api import client
 import tempfile
