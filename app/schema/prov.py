@@ -70,3 +70,12 @@ class ActivityEndedBy(Base):
     time = Column(DateTime, nullable=False)
 
     entity = relationship("Entity", back_populates="ended")
+
+
+class Agent(Base):
+    __tablename__ = 'agent'
+
+    id = Column(Integer, autoincrement=True, primary_key=True)
+    workflow_execution_id = Column(Integer, ForeignKey('workflow_execution.id'))
+    type = Column(Enum('person', 'organization', 'software'))
+    name = Column(String(255), nullable=False)

@@ -6,7 +6,7 @@ from prov.dot import prov_to_dot
 from starlette.background import BackgroundTask
 from fastapi.responses import FileResponse
 from fastapi import APIRouter, Depends
-from schema.prov import Entity, Activity, EntityUsedBy, EntityGeneratedBy, ActivityStartedBy, ActivityEndedBy
+from schema.prov import Entity, Activity, EntityUsedBy, EntityGeneratedBy, ActivityStartedBy, ActivityEndedBy, Agent
 from schema.init_db import session
 from schema.workflow_execution import WorkflowExecution, WorkflowExecutionStep
 from schema.workflow_registry import WorkflowRegistry
@@ -91,7 +91,7 @@ async def track_provenance(
         Entity(
             type='workflow_intermediate_result_file',
             path=i_file['name'],
-            name=i_file['name'].split('/')[-1],
+            name=i_file['name'].split('/')[-1].replace(':','_'),
             size=i_file['size']['human_readable'],
             last_modified=datetime.fromisoformat(i_file['last-modified']),
             workflow_execution_id=workflow_execution.id
@@ -103,7 +103,7 @@ async def track_provenance(
         Entity(
             type='workflow_final_result_file',
             path=o_file['name'],
-            name=o_file['name'].split('/')[-1],
+            name=o_file['name'].split('/')[-1].replace(':','_'),
             size=o_file['size']['human_readable'],
             last_modified=datetime.fromisoformat(o_file['last-modified']),
             workflow_execution_id=workflow_execution.id
@@ -115,7 +115,7 @@ async def track_provenance(
     step_activities = [
         Activity(
             type='step_execution',
-            name=s.name,
+            name=s.name.replace(':','_'),
             start_time=s.start_time,
             end_time=s.end_time,
             workflow_execution_id=workflow_execution.id
@@ -123,7 +123,7 @@ async def track_provenance(
     ]
     workflow_activity = Activity(
         type='workflow_execution',
-        name=f"{workflow_execution.reana_name}.{workflow_execution.reana_run_number}",
+        name=f"{workflow_execution.reana_name.replace(':','_')}_{workflow_execution.reana_run_number}",
         start_time=workflow_execution.start_time,
         end_time=workflow_execution.end_time,
         workflow_execution_id=workflow_execution.id
@@ -188,6 +188,20 @@ async def track_provenance(
         )
     )
     session.add(workflow_entity)
+    agent = Agent(
+        type='person',
+        name=workflow_execution.username,
+        workflow_execution_id=workflow_execution.id
+    )
+    session.add(agent)
+
+    organization = Agent(
+        type='organization',
+        name=workflow_execution.group,
+        workflow_execution_id=workflow_execution.id
+    )
+    session.add(organization)
+
     session.commit()
     return Response(
         success=True,
@@ -254,38 +268,74 @@ async def draw_provenance(
     for e in entities:
         generated_by = session.query(EntityGeneratedBy).filter(EntityGeneratedBy.entity_id == e.id).all()
         for g in generated_by:
-            entity_name = session.query(Entity.name).filter(Entity.id == g.entity_id).first()[0].replace(':', '_')
-            activity_name = session.query(Activity.name).filter(Activity.id == g.activity_id).first()[0].replace(':', '_')
-            doc.wasGeneratedBy(entity_name, activity_name)
+            activity_name = session.query(Activity.name).filter(Activity.id == g.activity_id).first()[0]
+            doc.wasGeneratedBy(e.name, activity_name)
 
         used_by = session.query(EntityUsedBy).filter(EntityUsedBy.entity_id == e.id).all()
         for u in used_by:
-            entity_name = session.query(Entity.name).filter(Entity.id == u.entity_id).first()[0].replace(':', '_')
-            activity_name = session.query(Activity.name).filter(Activity.id == u.activity_id).first()[0].replace(':', '_')
-            doc.used(entity_name, activity_name)
+            activity_name = session.query(Activity.name).filter(Activity.id == u.activity_id).first()[0]
+            doc.used(activity_name, e.name)
 
     for a in activities:
         started_by = session.query(ActivityStartedBy).filter(ActivityStartedBy.activity_id == a.id).all()
         for s in started_by:
-            entity_name = session.query(Entity.name).filter(Entity.id == s.entity_id).first()[0].replace(':', '_')
-            activity_name = session.query(Activity.name).filter(Activity.id == s.activity_id).first()[0].replace(':', '_')
-
+            entity_name = session.query(Entity.name).filter(Entity.id == s.entity_id).first()[0]
             doc.wasStartedBy(
-                activity=activity_name,
+                activity=a.name,
                 trigger=entity_name,
                 time=s.time
             )
 
         ended_by = session.query(ActivityEndedBy).filter(ActivityEndedBy.activity_id == a.id).all()
         for e in ended_by:
-            entity_name = session.query(Entity.name).filter(Entity.id == e.entity_id).first()[0].replace(':', '_')
-            activity_name = session.query(Activity.name).filter(Activity.id == e.activity_id).first()[0].replace(':', '_')
+            entity_name = session.query(Entity.name).filter(Entity.id == s.entity_id).first()[0]
 
             doc.wasEndedBy(
-                activity=activity_name,
+                activity=a.name,
                 trigger=entity_name,
                 time=e.time
             )
+
+    person = session.query(Agent).filter(
+        Agent.workflow_execution_id == workflow_execution.id,
+        Agent.type == 'person'
+    ).first()
+
+    doc.agent(
+        person.name,
+        {
+            'type': 'person'
+        }
+    )
+
+    organization = session.query(Agent).filter(
+        Agent.workflow_execution_id == workflow_execution.id,
+        Agent.type == 'organization'
+    ).first()
+
+    doc.agent(
+        organization.name,
+        {
+            'type': 'organization'
+        }
+    )
+
+    doc.actedOnBehalfOf(
+        delegate=person.name,
+        responsible=organization.name
+    )
+
+    for e in entities:
+        doc.attribution(
+            agent=person.name,
+            entity=e.name
+        )
+
+    for a in activities:
+        doc.association(
+            agent=person.name,
+            activity=a.name
+        )
 
     png_name = f"{reana_name}:{run_number}-provenance.png"
     prov_to_dot(doc).write_png(png_name)
