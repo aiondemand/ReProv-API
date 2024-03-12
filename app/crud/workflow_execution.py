@@ -178,6 +178,7 @@ async def execute_workflow(
             parameters={}
         )
         workflow_execution = WorkflowExecution(
+            username=user.username,
             group=user.group,
             registry_id=registry_id,
             reana_id=workflow_run['workflow_id'],
@@ -257,7 +258,7 @@ async def monitor_execution(reana_id):
         if workflow_status['status'] == 'finished' or workflow_status['status'] == 'failed':
             break
 
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.001)
 
     last_workflow_execution_step = session.query(WorkflowExecutionStep).filter(
         WorkflowExecutionStep.workflow_execution_id == workflow_execution.id,
@@ -327,7 +328,6 @@ async def delete_workflow_execution(
         message = f"Every workflow associated with registry_id:{registry_id} was successfully deleted"
     else:
         message = f"Every workflow associated with name:{reana_name} was successfully deleted"
-
     data = deleted_workflows_id
     return Response(
         success=True,

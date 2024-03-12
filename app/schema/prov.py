@@ -11,12 +11,12 @@ class Entity(Base):
     type = Column(Enum('workflow', 'workflow_intermediate_result_file', 'workflow_final_result_file'))
     path = Column(String(255), nullable=False)
     name = Column(String(255), nullable=False)
-    size = Column(Integer, nullable=True)
+    size = Column(String(255), nullable=True)
     last_modified = Column(DateTime, nullable=True)
 
     workflow_execution_id = Column(Integer, ForeignKey('workflow_execution.id'))
-    started = relationship("Activity", secondary='activity_started_by')
-    ended = relationship("Activity", secondary='activity_ended_by')
+    started = relationship("ActivityStartedBy", back_populates='entity')
+    ended = relationship("ActivityEndedBy", back_populates='entity')
 
 
 class Activity(Base):
@@ -56,6 +56,9 @@ class ActivityStartedBy(Base):
     id = Column(Integer, primary_key=True)
     activity_id = Column(Integer, ForeignKey('activity.id'))
     entity_id = Column(Integer, ForeignKey('entity.id'))
+    time = Column(DateTime, nullable=False)
+
+    entity = relationship("Entity", back_populates="started")
 
 
 class ActivityEndedBy(Base):
@@ -64,3 +67,15 @@ class ActivityEndedBy(Base):
     id = Column(Integer, primary_key=True)
     activity_id = Column(Integer, ForeignKey('activity.id'))
     entity_id = Column(Integer, ForeignKey('entity.id'))
+    time = Column(DateTime, nullable=False)
+
+    entity = relationship("Entity", back_populates="ended")
+
+
+class Agent(Base):
+    __tablename__ = 'agent'
+
+    id = Column(Integer, autoincrement=True, primary_key=True)
+    workflow_execution_id = Column(Integer, ForeignKey('workflow_execution.id'))
+    type = Column(Enum('person', 'organization', 'software'))
+    name = Column(String(255), nullable=False)
