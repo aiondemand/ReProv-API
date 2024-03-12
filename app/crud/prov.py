@@ -91,7 +91,7 @@ async def track_provenance(
         Entity(
             type='workflow_intermediate_result_file',
             path=i_file['name'],
-            name=i_file['name'].split('/')[-1].replace(':','_'),
+            name=i_file['name'].split('/')[-1].replace(':', '_'),
             size=i_file['size']['human_readable'],
             last_modified=datetime.fromisoformat(i_file['last-modified']),
             workflow_execution_id=workflow_execution.id
@@ -103,7 +103,7 @@ async def track_provenance(
         Entity(
             type='workflow_final_result_file',
             path=o_file['name'],
-            name=o_file['name'].split('/')[-1].replace(':','_'),
+            name=o_file['name'].split('/')[-1].replace(':', '_'),
             size=o_file['size']['human_readable'],
             last_modified=datetime.fromisoformat(o_file['last-modified']),
             workflow_execution_id=workflow_execution.id
@@ -115,7 +115,7 @@ async def track_provenance(
     step_activities = [
         Activity(
             type='step_execution',
-            name=s.name.replace(':','_'),
+            name=s.name.replace(':', '_'),
             start_time=s.start_time,
             end_time=s.end_time,
             workflow_execution_id=workflow_execution.id
