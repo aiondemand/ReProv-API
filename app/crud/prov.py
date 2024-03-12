@@ -6,7 +6,7 @@ from prov.dot import prov_to_dot
 from starlette.background import BackgroundTask
 from fastapi.responses import FileResponse
 from fastapi import APIRouter, Depends
-from schema.prov import Entity, Activity, EntityUsedBy, EntityGeneratedBy
+from schema.prov import Entity, Activity, EntityUsedBy, EntityGeneratedBy, ActivityStartedBy, ActivityEndedBy
 from schema.init_db import session
 from schema.workflow_execution import WorkflowExecution, WorkflowExecutionStep
 from schema.workflow_registry import WorkflowRegistry
@@ -82,7 +82,8 @@ async def track_provenance(
         path=f"/var/reana/users/00000000-0000-0000-0000-000000000000/workflows/{workflow_execution.reana_id}/workflow.json",
         name='workflow.json',
         size=spec_file['size']['human_readable'],
-        last_modified=datetime.fromisoformat(spec_file['last-modified'])
+        last_modified=datetime.fromisoformat(spec_file['last-modified']),
+        workflow_execution_id=workflow_execution.id
     )
 
     # create entities for the intermediate files
@@ -169,9 +170,24 @@ async def track_provenance(
         workflow_activity.generated.append(e)
         session.add(workflow_activity)
 
-    workflow_entity.started.append(workflow_activity)
-    workflow_entity.ended.append(workflow_activity)
+    # workflow_entity.ended.append(workflow_activity)
 
+    workflow_entity.started.append(
+        ActivityStartedBy(
+            activity_id=workflow_activity.id,
+            entity_id=workflow_entity.id,
+            time=workflow_activity.start_time
+        )
+    )
+
+    workflow_entity.ended.append(
+        ActivityEndedBy(
+            activity_id=workflow_activity.id,
+            entity_id=workflow_entity.id,
+            time=workflow_activity.end_time
+        )
+    )
+    session.add(workflow_entity)
     session.commit()
     return Response(
         success=True,
@@ -247,6 +263,29 @@ async def draw_provenance(
             entity_name = session.query(Entity.name).filter(Entity.id == u.entity_id).first()[0].replace(':', '_')
             activity_name = session.query(Activity.name).filter(Activity.id == u.activity_id).first()[0].replace(':', '_')
             doc.used(entity_name, activity_name)
+
+    for a in activities:
+        started_by = session.query(ActivityStartedBy).filter(ActivityStartedBy.activity_id == a.id).all()
+        for s in started_by:
+            entity_name = session.query(Entity.name).filter(Entity.id == s.entity_id).first()[0].replace(':', '_')
+            activity_name = session.query(Activity.name).filter(Activity.id == s.activity_id).first()[0].replace(':', '_')
+
+            doc.wasStartedBy(
+                activity=activity_name,
+                trigger=entity_name,
+                time=s.time
+            )
+
+        ended_by = session.query(ActivityEndedBy).filter(ActivityEndedBy.activity_id == a.id).all()
+        for e in ended_by:
+            entity_name = session.query(Entity.name).filter(Entity.id == e.entity_id).first()[0].replace(':', '_')
+            activity_name = session.query(Activity.name).filter(Activity.id == e.activity_id).first()[0].replace(':', '_')
+
+            doc.wasEndedBy(
+                activity=activity_name,
+                trigger=entity_name,
+                time=e.time
+            )
 
     png_name = f"{reana_name}:{run_number}-provenance.png"
     prov_to_dot(doc).write_png(png_name)
