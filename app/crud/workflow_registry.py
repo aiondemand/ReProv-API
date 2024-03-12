@@ -4,7 +4,6 @@ from fastapi import APIRouter, UploadFile, File, Depends
 from schema.workflow_registry import WorkflowRegistry, WorkflowRegistryModel
 from schema.init_db import session
 from sqlalchemy.exc import IntegrityError
-from utils.wrap_cwl import wrap
 from ruamel.yaml import YAML
 from authentication.auth import authenticate_user
 
@@ -89,8 +88,7 @@ async def register_workflow(
     input_file: UploadFile = File(None),
     user: User = Depends(authenticate_user)
 ):
-    print(user.group)
-    spec_file_content = wrap(spec_file.file.read())
+    spec_file_content = spec_file.file.read()
     input_file_content = input_file.file.read() if input_file else None
 
     workflow = WorkflowRegistry(
