@@ -1,16 +1,18 @@
 import asyncio
 import os
 from fastapi.responses import FileResponse
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends
 from starlette.background import BackgroundTask
 from schema.workflow_execution import WorkflowExecution, WorkflowExecutionStep
 from schema.workflow_registry import WorkflowRegistry
 from schema.init_db import session
+from authentication.auth import authenticate_user
+from models.user import User
 from reana_client.api import client
 import tempfile
 from datetime import datetime
 import urllib3
-from utils.response import Response
+from models.response import Response
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
@@ -21,11 +23,17 @@ router = APIRouter()
     "/",
     description="List all workflows that have been executed",
 )
-async def list_executed_workflows():
-    workflow_executions = session.query(WorkflowExecution).all()
+async def list_executed_workflows(
+    user: User = Depends(authenticate_user)
+):
+    workflow_executions = session.query(WorkflowExecution).filter(
+        WorkflowExecution.group == user.group
+    ).all()
     data = {}
     for workflow_execution in workflow_executions:
         workflow_data = {
+            'username': user.username,
+            'group': user.group,
             'execution_id': workflow_execution.id,
             'start_time': workflow_execution.start_time,
             'end_time': workflow_execution.end_time,
@@ -61,8 +69,14 @@ async def list_executed_workflows():
     "/{execution_id}",
     description="Get details of a specific workflow that was executed by its execution ID.",
 )
-async def get_workflow_execution_by_id(execution_id: int):
-    workflow_execution = session.query(WorkflowExecution).filter(WorkflowExecution.id == execution_id).first()
+async def get_workflow_execution_by_id(
+    execution_id: int,
+    user: User = Depends(authenticate_user)
+):
+    workflow_execution = session.query(WorkflowExecution).filter(
+        WorkflowExecution.id == execution_id,
+        WorkflowExecution.group == user.group
+    ).first()
     if workflow_execution is None:
         return Response(
             success=False,
@@ -71,6 +85,8 @@ async def get_workflow_execution_by_id(execution_id: int):
             data={}
         )
     data = {
+        'username': user.username,
+        'group': user.group,
         'execution_id': workflow_execution.id,
         'start_time': workflow_execution.start_time,
         'end_time': workflow_execution.end_time,
@@ -104,8 +120,15 @@ async def get_workflow_execution_by_id(execution_id: int):
     "/execute/{registry_id}",
     description="Execute workflow by invoking REANA system"
 )
-async def execute_workflow(registry_id: int, background_tasks: BackgroundTasks):
-    workflow_registry = session.query(WorkflowRegistry).filter(WorkflowRegistry.id == registry_id).first()
+async def execute_workflow(
+    registry_id: int,
+    background_tasks: BackgroundTasks,
+    user: User = Depends(authenticate_user)
+):
+    workflow_registry = session.query(WorkflowRegistry).filter(
+        WorkflowRegistry.id == registry_id,
+        WorkflowRegistry.group == user.group
+    ).first()
 
     if workflow_registry is None:
         return Response(
@@ -115,7 +138,6 @@ async def execute_workflow(registry_id: int, background_tasks: BackgroundTasks):
             data={}
         )
 
-    print(os.environ['REANA_ACCESS_TOKEN'])
     with tempfile.NamedTemporaryFile(dir=os.getcwd(), suffix='.cwl', delete=False) as spec_temp_file:
         spec_temp_file.write(workflow_registry.spec_file_content.encode('utf-8'))
 
@@ -149,13 +171,13 @@ async def execute_workflow(registry_id: int, background_tasks: BackgroundTasks):
         )
 
     try:
-
         workflow_run = client.start_workflow(
             workflow=reana_workflow['workflow_name'],
             access_token=os.environ['REANA_ACCESS_TOKEN'],
             parameters={}
         )
         workflow_execution = WorkflowExecution(
+            group=user.group,
             registry_id=registry_id,
             reana_id=workflow_run['workflow_id'],
             reana_name=workflow_run['workflow_name'],
@@ -182,13 +204,14 @@ async def execute_workflow(registry_id: int, background_tasks: BackgroundTasks):
             os.remove(os.path.join(os.getcwd(), input_temp_file.name))
 
         data = {
+            "username": user.username,
+            "group": user.group,
             "execution_id": workflow_execution.id,
             "name": workflow_registry.name,
             "version": workflow_registry.version,
             "reana_name": workflow_execution.reana_name,
             "reana_id": workflow_execution.reana_id,
             "run_number": workflow_execution.reana_run_number,
-
         }
         return Response(
             success=True,
@@ -233,7 +256,7 @@ async def monitor_execution(reana_id):
         if workflow_status['status'] == 'finished' or workflow_status['status'] == 'failed':
             break
 
-        await asyncio.sleep(0.001)
+        await asyncio.sleep(0.1)
 
     last_workflow_execution_step = session.query(WorkflowExecutionStep).filter(
         WorkflowExecutionStep.workflow_execution_id == workflow_execution.id,
@@ -254,7 +277,11 @@ async def monitor_execution(reana_id):
     "/delete/",
     description="Delete every workflow execution that was associated with a registry ID OR with a name provided by the execution system "
 )
-async def delete_workflow_execution(registry_id: int = None, reana_name: str = None):
+async def delete_workflow_execution(
+    registry_id: int = None,
+    reana_name: str = None,
+    user: User = Depends(authenticate_user)
+):
     if registry_id and reana_name:
         return Response(
             success=False,
@@ -265,9 +292,15 @@ async def delete_workflow_execution(registry_id: int = None, reana_name: str = N
 
     deleted_workflows_id = []
     if registry_id:
-        workflows = session.query(WorkflowExecution).filter(WorkflowExecution.registry_id == registry_id).all()
+        workflows = session.query(WorkflowExecution).filter(
+            WorkflowExecution.registry_id == registry_id,
+            WorkflowExecution.group == user.group
+        ).all()
     else:
-        workflows = session.query(WorkflowExecution).filter(WorkflowExecution.reana_name == reana_name).all()
+        workflows = session.query(WorkflowExecution).filter(
+            WorkflowExecution.reana_name == reana_name,
+            WorkflowExecution.group == user.group
+        ).all()
 
     for w in workflows:
         try:
@@ -306,9 +339,15 @@ async def delete_workflow_execution(registry_id: int = None, reana_name: str = N
     "/outputs/",
     description="Download outputs of an executed workflow",
 )
-async def download_outputs(reana_name: str, run_number: int):
+async def download_outputs(
+    reana_name: str,
+    run_number: int,
+    user: User = Depends(authenticate_user)
+):
     workflow_execution = session.query(WorkflowExecution).filter(
-        WorkflowExecution.reana_name == reana_name, WorkflowExecution.reana_run_number == run_number
+        WorkflowExecution.reana_name == reana_name,
+        WorkflowExecution.reana_run_number == run_number,
+        WorkflowExecution.group == user.group
     ).first()
 
     if workflow_execution is None:
@@ -350,9 +389,15 @@ async def download_outputs(reana_name: str, run_number: int):
     "/inputs/",
     description="Download inputs of an executed workflow",
 )
-async def download_inputs(reana_name: str, run_number: int):
+async def download_inputs(
+    reana_name: str,
+    run_number: int,
+    user: User = Depends(authenticate_user)
+):
     workflow_execution = session.query(WorkflowExecution).filter(
-        WorkflowExecution.reana_name == reana_name, WorkflowExecution.reana_run_number == run_number
+        WorkflowExecution.reana_name == reana_name,
+        WorkflowExecution.reana_run_number == run_number,
+        WorkflowExecution.group == user.group
     ).first()
 
     if workflow_execution is None:

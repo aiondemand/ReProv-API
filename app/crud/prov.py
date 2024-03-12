@@ -5,14 +5,16 @@ from prov.model import ProvDocument
 from prov.dot import prov_to_dot
 from starlette.background import BackgroundTask
 from fastapi.responses import FileResponse
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from schema.prov import Entity, Activity, EntityUsedBy, EntityGeneratedBy
 from schema.init_db import session
 from schema.workflow_execution import WorkflowExecution, WorkflowExecutionStep
 from schema.workflow_registry import WorkflowRegistry
+from authentication.auth import authenticate_user
+from models.user import User
 from ruamel.yaml import YAML
 from reana_client.api import client
-from utils.response import Response
+from models.response import Response
 
 router = APIRouter()
 
@@ -21,10 +23,15 @@ router = APIRouter()
     "/capture/",
     description="Capture provenance for workflow with specific name & run number",
 )
-async def track_provenance(reana_name: str, run_number: int):
+async def track_provenance(
+    reana_name: str,
+    run_number: int,
+    user: User = Depends(authenticate_user)
+):
     workflow_execution = session.query(WorkflowExecution).filter(
         WorkflowExecution.reana_name == reana_name,
-        WorkflowExecution.reana_run_number == run_number
+        WorkflowExecution.reana_run_number == run_number,
+        WorkflowExecution.group == user.group
     ).first()
     if workflow_execution is None:
         return Response(
@@ -177,10 +184,15 @@ async def track_provenance(reana_name: str, run_number: int):
     "/draw/",
     description="Create a graphical represenation of provenance for workflow with specific reana_name and run number",
 )
-async def draw_provenance(reana_name: str, run_number: int):
+async def draw_provenance(
+    reana_name: str,
+    run_number: int,
+    user: User = Depends(authenticate_user)
+):
     workflow_execution = session.query(WorkflowExecution).filter(
         WorkflowExecution.reana_name == reana_name,
-        WorkflowExecution.reana_run_number == run_number
+        WorkflowExecution.reana_run_number == run_number,
+        WorkflowExecution.group == user.group
     ).first()
     if workflow_execution is None:
         return Response(

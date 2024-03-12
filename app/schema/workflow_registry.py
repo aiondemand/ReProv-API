@@ -23,3 +23,5 @@ class WorkflowRegistry(Base):
     version = Column(String(255), nullable=False)
     spec_file_content = Column(LONGTEXT, nullable=False)
     input_file_content = Column(LONGTEXT, nullable=True)
+    username = Column(String(255), nullable=False)
+    group = Column(String(255), nullable=False)
