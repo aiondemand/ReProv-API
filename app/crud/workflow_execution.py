@@ -6,8 +6,12 @@ from starlette.background import BackgroundTask
 from schema.workflow_execution import WorkflowExecution, WorkflowExecutionStep
 from schema.workflow_registry import WorkflowRegistry
 from schema.init_db import session
+<<<<<<< Updated upstream
 from authentication.auth import authenticate_user
 from models.user import User
+=======
+>>>>>>> Stashed changes
+from utils.wrap_cwl import wrap
 from reana_client.api import client
 import tempfile
 from datetime import datetime
@@ -139,7 +143,7 @@ async def execute_workflow(
         )
 
     with tempfile.NamedTemporaryFile(dir=os.getcwd(), suffix='.cwl', delete=False) as spec_temp_file:
-        spec_temp_file.write(workflow_registry.spec_file_content.encode('utf-8'))
+        spec_temp_file.write(wrap(workflow_registry.spec_file_content.encode('utf-8')))
 
     inputs = {"parameters": {}}
     if workflow_registry.input_file_content:
