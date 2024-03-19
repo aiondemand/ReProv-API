@@ -50,14 +50,14 @@ async def track_provenance(
             data={}
         )
 
-    # previously_captured = session.query(Activity).filter(Activity.workflow_execution_id == workflow_execution.id).first()
-    # if previously_captured:
-    #     return Response(
-    #         success=False,
-    #         message="Provenance was captured before",
-    #         error_code=403,
-    #         data={}
-    #     )
+    previously_captured = session.query(Activity).filter(Activity.workflow_execution_id == workflow_execution.id).first()
+    if previously_captured:
+        return Response(
+            success=False,
+            message="Provenance was captured before",
+            error_code=403,
+            data={}
+        )
 
     workflow_spec_file = session.query(WorkflowRegistry).filter(WorkflowRegistry.id == workflow_execution.registry_id).first().spec_file_content
 
