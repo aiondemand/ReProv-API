@@ -6,7 +6,7 @@ from prov.dot import prov_to_dot
 from starlette.background import BackgroundTask
 from fastapi.responses import FileResponse
 from fastapi import APIRouter, Depends
-from schema.prov import Entity, Activity, EntityUsedBy, EntityGeneratedBy, ActivityStartedBy, ActivityEndedBy, Agent
+from schema.prov import Entity, Activity, Agent
 from schema.init_db import session
 from schema.workflow_execution import WorkflowExecution, WorkflowExecutionStep
 from schema.workflow_registry import WorkflowRegistry
@@ -50,14 +50,19 @@ async def track_provenance(
             data={}
         )
 
-    previously_captured = session.query(Activity).filter(Activity.workflow_execution_id == workflow_execution.id).first()
-    if previously_captured:
-        return Response(
-            success=False,
-            message="Provenance was captured before",
-            error_code=403,
-            data={}
-        )
+    # previously_captured = session.query(Activity).filter(Activity.workflow_execution_id == workflow_execution.id).first()
+    # if previously_captured:
+    #     return Response(
+    #         success=False,
+    #         message="Provenance was captured before",
+    #         error_code=403,
+    #         data={}
+    #     )
+
+    workflow_spec_file = session.query(WorkflowRegistry).filter(WorkflowRegistry.id == workflow_execution.registry_id).first().spec_file_content
+
+    yaml = YAML(typ='safe', pure=True)
+    data = yaml.load(workflow_spec_file)
 
     workflow_execution_steps = session.query(WorkflowExecutionStep).filter(WorkflowExecutionStep.workflow_execution_id == workflow_execution.id).all()
 
@@ -65,9 +70,6 @@ async def track_provenance(
         workflow=workflow_execution.reana_id,
         access_token=os.environ['REANA_ACCESS_TOKEN']
     )
-    output_files = [f for f in workflow_files if f['name'].startswith('outputs/') and f['name'].split('/')[-1] != 'map.txt']
-    intermediate_files = [f for f in workflow_files if f['name'].startswith('cwl/')]
-    spec_file = [f for f in workflow_files if f['name'] == 'workflow.json'][0]
     map_file_content = client.download_file(
         workflow=workflow_execution.reana_id,
         access_token=os.environ['REANA_ACCESS_TOKEN'],
@@ -76,11 +78,15 @@ async def track_provenance(
 
     map_df = pd.DataFrame([line.split(',') for line in map_file_content if line], columns=['filename', 'entity_name'])
 
+    intermediate_files = [f for f in workflow_files if f['name'].startswith('cwl/') and f['name'].split('/')[-1] in map_df['entity_name'].values]
+    output_files = [f for f in workflow_files if f['name'].startswith('outputs/') and f['name'].split('/')[-1] != 'map.txt']
+    spec_file = [f for f in workflow_files if f['name'] == 'workflow.json'][0]
+
     # create entity for the whole workflow
     workflow_entity = Entity(
         type='workflow',
-        path=f"/var/reana/users/00000000-0000-0000-0000-000000000000/workflows/{workflow_execution.reana_id}/workflow.json",
-        name='workflow.json',
+        path=f"{workflow_execution.reana_id}/workflow.json",
+        name='workflow',
         size=spec_file['size']['human_readable'],
         last_modified=datetime.fromisoformat(spec_file['last-modified']),
         workflow_execution_id=workflow_execution.id
@@ -135,9 +141,6 @@ async def track_provenance(
     for a in activities:
         session.add(a)
 
-    workflow_spec_file = session.query(WorkflowRegistry).filter(WorkflowRegistry.id == workflow_execution.registry_id).first().spec_file_content
-    yaml = YAML(typ='safe', pure=True)
-    data = yaml.load(workflow_spec_file)
     for s in data['steps']:
         if s == 'map':  # ignore map step
             continue
@@ -147,10 +150,18 @@ async def track_provenance(
 
         # for each input file in step (f):
         # this file wasUsedBy the corresponding entity (eneity_name) with filename=map_df.loc['filename'=f]
-
         for f in step_file_inputs:
-            entity_name = map_df.loc[map_df['filename'] == f].to_dict('records')[0]['entity_name']
-            entity = [e for e in entities if e.name == entity_name][0]
+            # check if is external file
+            external_input = False
+            for i in data['inputs']:
+                if 'valueFromEntity' in i:
+                    entity = session.query(Entity).filter(Entity.id == i['valueFromEntity'].strip('{}')).first()
+                    external_input = True
+
+            if not external_input:
+                entity_name = map_df.loc[map_df['filename'] == f].to_dict('records')[0]['entity_name']
+                entity = [e for e in entities if e.name == entity_name][0]
+
             activity = [a for a in step_activities if a.name == s][0]
             activity.used.append(entity)
             session.add(activity)
@@ -163,30 +174,10 @@ async def track_provenance(
             activity.generated.append(entity)
             session.add(activity)
 
-    for e in entities:
-        # workflow used every entity
-        workflow_activity.used.append(e)
-        # workflow generated every entity that was not input on first step
+    for e in output_entities:
         workflow_activity.generated.append(e)
         session.add(workflow_activity)
 
-    # workflow_entity.ended.append(workflow_activity)
-
-    workflow_entity.started.append(
-        ActivityStartedBy(
-            activity_id=workflow_activity.id,
-            entity_id=workflow_entity.id,
-            time=workflow_activity.start_time
-        )
-    )
-
-    workflow_entity.ended.append(
-        ActivityEndedBy(
-            activity_id=workflow_activity.id,
-            entity_id=workflow_entity.id,
-            time=workflow_activity.end_time
-        )
-    )
     session.add(workflow_entity)
     agent = Agent(
         type='person',
@@ -195,12 +186,12 @@ async def track_provenance(
     )
     session.add(agent)
 
-    organization = Agent(
-        type='organization',
-        name=workflow_execution.group,
+    software = Agent(
+        type='software',
+        name='software executing experiments',
         workflow_execution_id=workflow_execution.id
     )
-    session.add(organization)
+    session.add(software)
 
     session.commit()
     return Response(
@@ -234,25 +225,19 @@ async def draw_provenance(
     activities = session.query(Activity).filter(
         Activity.workflow_execution_id == workflow_execution.id
     ).all()
-    entities = session.query(Entity).filter(
-        Entity.workflow_execution_id == workflow_execution.id
-    ).all()
+
+    workflow_entity = session.query(Entity).filter(
+        Entity.workflow_execution_id == workflow_execution.id,
+        Entity.type == 'workflow'
+    ).first()
+
+    workflow_activity = session.query(Activity).filter(
+        Activity.workflow_execution_id == workflow_execution.id,
+        Activity.type == 'workflow_execution'
+    ).first()
 
     doc = ProvDocument()
     doc.set_default_namespace('https://www.w3.org/TR/prov-dm/')
-
-    for e in entities:
-        doc.entity(
-            e.name,
-            {
-                'id': e.id,
-                'type': e.type,
-                'path': e.path,
-                'name': e.name,
-                'size': e.size,
-                'last_modified': e.last_modified,
-            }
-        )
 
     for a in activities:
         doc.activity(
@@ -265,36 +250,63 @@ async def draw_provenance(
             }
         )
 
-    for e in entities:
-        generated_by = session.query(EntityGeneratedBy).filter(EntityGeneratedBy.entity_id == e.id).all()
-        for g in generated_by:
-            activity_name = session.query(Activity.name).filter(Activity.id == g.activity_id).first()[0]
-            doc.wasGeneratedBy(e.name, activity_name)
-
-        used_by = session.query(EntityUsedBy).filter(EntityUsedBy.entity_id == e.id).all()
-        for u in used_by:
-            activity_name = session.query(Activity.name).filter(Activity.id == u.activity_id).first()[0]
-            doc.used(activity_name, e.name)
+    doc.entity(
+        workflow_entity.name,
+        {
+            'id': workflow_entity.id,
+            'type': workflow_entity.type,
+            'path': workflow_entity.path,
+            'name': workflow_entity.name,
+            'size': workflow_entity.size,
+            'last_modified': workflow_entity.last_modified,
+        }
+    )
 
     for a in activities:
-        started_by = session.query(ActivityStartedBy).filter(ActivityStartedBy.activity_id == a.id).all()
-        for s in started_by:
-            entity_name = session.query(Entity.name).filter(Entity.id == s.entity_id).first()[0]
-            doc.wasStartedBy(
-                activity=a.name,
-                trigger=entity_name,
-                time=s.time
+        for entity in a.used:
+            doc.entity(
+                entity.name,
+                {
+                    'id': entity.id,
+                    'type': entity.type,
+                    'path': entity.path,
+                    'name': entity.name,
+                    'size': entity.size,
+                    'last_modified': entity.last_modified,
+                }
             )
 
-        ended_by = session.query(ActivityEndedBy).filter(ActivityEndedBy.activity_id == a.id).all()
-        for e in ended_by:
-            entity_name = session.query(Entity.name).filter(Entity.id == s.entity_id).first()[0]
+            doc.used(a.name, entity.name)
 
-            doc.wasEndedBy(
-                activity=a.name,
-                trigger=entity_name,
-                time=e.time
+        for entity in a.generated:
+            doc.entity(
+                entity.name,
+                {
+                    'id': entity.id,
+                    'type': entity.type,
+                    'path': entity.path,
+                    'name': entity.name,
+                    'size': entity.size,
+                    'last_modified': entity.last_modified,
+                }
             )
+            doc.generation(entity.name, a.name)
+
+        doc.start(
+            activity=a.name,
+            trigger=workflow_entity.name,
+            other_attributes={
+                'time': a.start_time
+            }
+        )
+
+        doc.end(
+            activity=a.name,
+            trigger=workflow_entity.name,
+            other_attributes={
+                'time': a.end_time
+            }
+        )
 
     person = session.query(Agent).filter(
         Agent.workflow_execution_id == workflow_execution.id,
@@ -308,34 +320,31 @@ async def draw_provenance(
         }
     )
 
-    organization = session.query(Agent).filter(
+    software = session.query(Agent).filter(
         Agent.workflow_execution_id == workflow_execution.id,
-        Agent.type == 'organization'
+        Agent.type == 'software'
     ).first()
 
     doc.agent(
-        organization.name,
+        software.name,
         {
-            'type': 'organization'
+            'type': 'software'
         }
     )
 
     doc.actedOnBehalfOf(
-        delegate=person.name,
-        responsible=organization.name
+        delegate=software.name,
+        responsible=person.name
+    )
+    doc.attribution(
+        entity=workflow_entity.name,
+        agent=software.name
     )
 
-    for e in entities:
-        doc.attribution(
-            agent=person.name,
-            entity=e.name
-        )
-
-    for a in activities:
-        doc.association(
-            agent=person.name,
-            activity=a.name
-        )
+    doc.association(
+        agent=software.name,
+        activity=workflow_activity.name
+    )
 
     png_name = f"{reana_name}:{run_number}-provenance.png"
     prov_to_dot(doc).write_png(png_name)

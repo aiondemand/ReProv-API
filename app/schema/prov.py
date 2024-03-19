@@ -15,8 +15,6 @@ class Entity(Base):
     last_modified = Column(DateTime, nullable=True)
 
     workflow_execution_id = Column(Integer, ForeignKey('workflow_execution.id'))
-    started = relationship("ActivityStartedBy", back_populates='entity')
-    ended = relationship("ActivityEndedBy", back_populates='entity')
 
 
 class Activity(Base):
@@ -48,28 +46,6 @@ class EntityGeneratedBy(Base):
     id = Column(Integer, primary_key=True)
     entity_id = Column(Integer, ForeignKey('entity.id'))
     activity_id = Column(Integer, ForeignKey('activity.id'))
-
-
-class ActivityStartedBy(Base):
-    __tablename__ = "activity_started_by"
-
-    id = Column(Integer, primary_key=True)
-    activity_id = Column(Integer, ForeignKey('activity.id'))
-    entity_id = Column(Integer, ForeignKey('entity.id'))
-    time = Column(DateTime, nullable=False)
-
-    entity = relationship("Entity", back_populates="started")
-
-
-class ActivityEndedBy(Base):
-    __tablename__ = "activity_ended_by"
-
-    id = Column(Integer, primary_key=True)
-    activity_id = Column(Integer, ForeignKey('activity.id'))
-    entity_id = Column(Integer, ForeignKey('entity.id'))
-    time = Column(DateTime, nullable=False)
-
-    entity = relationship("Entity", back_populates="ended")
 
 
 class Agent(Base):
