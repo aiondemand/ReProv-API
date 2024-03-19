@@ -4,7 +4,7 @@ services:
   api:
     container_name: provenance-api
     env_file:
-      - app/.env
+      - src/.env
     build: .
     ports:
       - "8000:8000"
@@ -16,7 +16,7 @@ services:
     container_name: provenance-db
     image: mysql:latest
     env_file:
-      - app/.env
+      - src/.env
     ports:
       - "3306:3306"
     volumes:
@@ -40,7 +40,7 @@ services:
       - start-dev
       - --import-realm
     volumes:
-      - ./app/authentication/prov-realm.json:/opt/keycloak/data/import/realm.json
+      - ./src/authentication/prov-realm.json:/opt/keycloak/data/import/realm.json
 
 volumes:
   db_data:
