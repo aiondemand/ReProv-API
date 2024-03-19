@@ -199,3 +199,23 @@ async def delete_workflow(
         message="Workflow has been deleted",
         data=data
     )
+
+
+from utils.cwl import add_mapping_step, replace_placeholders
+import tempfile
+import os
+
+
+@router.get(
+    "/test/"
+)
+async def test(
+):
+    with open('/home/aganios/id-is/mnist-cwl-demo/hist.cwl', 'r') as f:
+        data = f.read()
+
+    with tempfile.NamedTemporaryFile(dir=os.getcwd(), suffix='.cwl', delete=False) as spec_temp_file:
+        spec_file_with_mapping_step = add_mapping_step(data)
+        spec_file_without_placeholders, needed_inputs = replace_placeholders(spec_file_with_mapping_step)
+        spec_temp_file.write(spec_file_without_placeholders)
+    return {}

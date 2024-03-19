@@ -8,7 +8,7 @@ from schema.workflow_registry import WorkflowRegistry
 from schema.init_db import session
 from authentication.auth import authenticate_user
 from models.user import User
-from utils.wrap_cwl import wrap
+from utils.cwl import add_mapping_step, replace_placeholders
 from reana_client.api import client
 import tempfile
 from datetime import datetime
@@ -140,7 +140,10 @@ async def execute_workflow(
         )
 
     with tempfile.NamedTemporaryFile(dir=os.getcwd(), suffix='.cwl', delete=False) as spec_temp_file:
-        spec_temp_file.write(wrap(workflow_registry.spec_file_content.encode('utf-8')))
+
+        spec_file_with_mapping_step = add_mapping_step(workflow_registry.spec_file_content.encode('utf-8'))
+        spec_file_without_placeholders, needed_entities = replace_placeholders(spec_file_with_mapping_step)
+        spec_temp_file.write(spec_file_without_placeholders)
 
     inputs = {"parameters": {}}
     if workflow_registry.input_file_content:
@@ -150,12 +153,19 @@ async def execute_workflow(
             for line in f:
                 k, v = line.strip().split(": ")
                 inputs["parameters"][k] = v
+
+    for entity in needed_entities:
+        inputs['parameters'][entity['id']] = {
+            'class': 'File',
+            'path': entity['data'].name
+        }
+
     try:
         reana_workflow = client.create_workflow_from_json(
             name=f"{workflow_registry.name}:{workflow_registry.version}",
             access_token=os.environ['REANA_ACCESS_TOKEN'],
             workflow_file=os.path.join(os.getcwd(), spec_temp_file.name),
-            parameters=inputs if inputs["parameters"] != {} else None,
+            parameters=inputs,
             workflow_engine='cwl'
         )
 
@@ -163,7 +173,6 @@ async def execute_workflow(
         os.remove(os.path.join(os.getcwd(), spec_temp_file.name))
         if workflow_registry.input_file_content:
             os.remove(os.path.join(os.getcwd(), input_temp_file.name))
-
         return Response(
             success=False,
             message="Problem while creating REANA workflow: " + str(e),
@@ -172,8 +181,24 @@ async def execute_workflow(
         )
 
     try:
+        for entity in needed_entities:
+            prev_execution = session.query(WorkflowExecution.reana_id).filter(WorkflowExecution.id == entity['data'].workflow_execution_id).first()
+            file_name = entity['data'].path
+            downloaded_entity = client.download_file(
+                workflow=prev_execution.reana_id,
+                file_name=file_name,
+                access_token=os.environ['REANA_ACCESS_TOKEN'],
+            )
+
+            client.upload_file(
+                workflow=reana_workflow['workflow_id'],
+                file_=downloaded_entity[0],
+                file_name=entity['data'].name,
+                access_token=os.environ['REANA_ACCESS_TOKEN']
+            )
+
         workflow_run = client.start_workflow(
-            workflow=reana_workflow['workflow_name'],
+            workflow=reana_workflow['workflow_id'],
             access_token=os.environ['REANA_ACCESS_TOKEN'],
             parameters={}
         )
@@ -204,7 +229,6 @@ async def execute_workflow(
         os.remove(os.path.join(os.getcwd(), spec_temp_file.name))
         if workflow_registry.input_file_content:
             os.remove(os.path.join(os.getcwd(), input_temp_file.name))
-
         data = {
             "username": user.username,
             "group": user.group,
@@ -239,7 +263,7 @@ async def monitor_execution(reana_id):
                     WorkflowExecutionStep.name == prev_step,
                 ).first()
                 prev_workflow_execution_step.end_time = datetime.utcnow()
-                prev_workflow_execution_step.status = 'finished'
+                prev_workflow_execution_step.status = 'finished' if workflow_status['status'] != 'failed' else 'failed'
                 session.add(prev_workflow_execution_step)
                 session.commit()
 
@@ -260,14 +284,21 @@ async def monitor_execution(reana_id):
 
         await asyncio.sleep(0.001)
 
+    final_status = client.get_workflow_status(
+        workflow=reana_id,
+        access_token=os.environ['REANA_ACCESS_TOKEN']
+    )
+
     last_workflow_execution_step = session.query(WorkflowExecutionStep).filter(
         WorkflowExecutionStep.workflow_execution_id == workflow_execution.id,
         WorkflowExecutionStep.name == current_step,
     ).first()
-    last_workflow_execution_step.end_time = datetime.utcnow()
-    last_workflow_execution_step.status = 'finished'
-    session.add(last_workflow_execution_step)
-    session.commit()
+
+    if last_workflow_execution_step is not None:
+        last_workflow_execution_step.end_time = datetime.utcnow()
+        last_workflow_execution_step.status = final_status['status']
+        session.add(last_workflow_execution_step)
+        session.commit()
 
     workflow_execution = session.query(WorkflowExecution).filter(WorkflowExecution.reana_id == reana_id).first()
     workflow_execution.end_time = datetime.utcnow()

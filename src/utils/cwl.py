@@ -1,10 +1,12 @@
 from io import BytesIO
 from ruamel.yaml import YAML
+from schema.init_db import session
+from schema.prov import Entity
 
 yaml = YAML(typ='safe', pure=True)
 
 
-def wrap(spec_file):
+def add_mapping_step(spec_file):
     data = yaml.load(spec_file)
 
     steps_file_outputs = {}
@@ -62,8 +64,35 @@ def wrap(spec_file):
             'type': 'File',
         }
     ]
+    if 'requirements' not in data.keys():
+        data['requirements'] = {}
     data['requirements']['InlineJavascriptRequirement'] = {}
 
     with BytesIO() as output_yaml:
         yaml.dump(data, output_yaml)
         return output_yaml.getvalue()
+
+
+# function that replaces placeholders in the specification file.
+# returns the new specification file and the entities that need to be retrieved
+def replace_placeholders(spec_file):
+    entities = []
+    data = yaml.load(spec_file)
+    for i in data['inputs']:
+        if 'valueFromEntity' in i.keys():
+            entity_id = i['valueFromEntity'].strip('{}')
+            entity = session.query(Entity).filter(Entity.id == entity_id).first()
+            if entity is None:
+                return None
+
+            entities.append(
+                {
+                    'id': i['id'],
+                    'data': entity
+                }
+            )
+            del i['valueFromEntity']  # delete it from cwl
+
+    with BytesIO() as output_yaml:
+        yaml.dump(data, output_yaml)
+        return output_yaml.getvalue(), entities
