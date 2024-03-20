@@ -29,7 +29,7 @@ exploration of workflow dependencies and data flow.
 - `Python version >= 3.10 (preferably 3.10)`
 - `docker version >= 24.0.7`
 - `docker-compose version >= 1.29.2`
--  Access to an installed *REANA* instance. You will need *URL* of the service along with the corresponding *ACCESS TOKEN* . Feel free to contact ant.ganios@iit.demokritos.gr for more details on this.
+-  Access to an installed *REANA* instance. You will need *URL* of the service along with the corresponding *ACCESS TOKEN* . If you are collaborating with *[ID-IS](https://www.iit.demokritos.gr/labs/idis/)* group, feel free to contact ant.ganios@iit.demokritos.gr for more details on this.
 
 ### Run
 #### Clone the repository
@@ -87,6 +87,9 @@ Create and start all 3 containers using *docker-compose*.
 Once started, you should be able to
 
  1.  Visit the REST API at http://localhost:8000/docs 
- 2. Visit Keycloak at http://localhost:8080/ . In the current configuration Keylcoak is filled with 5 users and 2 groups. Each user has credentials of the form $user\_i:password\_i$ where $\;i\in \{1,\dots,5\}$.
+Instructions for using the API will be provided in the next sections
+ 3. Visit Keycloak at http://localhost:8080/ . In the current configuration Keylcoak is filled with 5 users and 2 groups. Each user has credentials of the form $user\_i:password\_i$ where $\;i\in \{1,\dots,5\}$.
  You can have admin access by using the credentials defined above. 
+The Swagger documentation for this API is available [here](api.json).
 
+## Usage
