@@ -2,26 +2,21 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Swagger UI</title>
-    <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5.12.0/swagger-ui.css">
-</head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="//pagecdn.io/lib/swagger-ui/v3.31.1/swagger-ui.css">
+    <title>OpenAPI Petstore</title>
+
 <body>
-<div id="swagger-ui"></div>
-<script src="https://unpkg.com/swagger-ui-dist@5.12.0/swagger-ui-bundle.js"></script>
-<script src="https://unpkg.com/swagger-ui-dist@5.12.0/swagger-ui-standalone-preset.js"></script>
-<script>
-    window.onload = function() {
-        const ui = SwaggerUIBundle({
-            url: "swagger.yaml", // path to your FastAPI YAML file
-            dom_id: '#swagger-ui',
-            deepLinking: true,
-            presets: [
-                SwaggerUIBundle.presets.apis,
-                SwaggerUIStandalonePreset
-            ],
-            layout: "BaseLayout",
-        });
-    }
-</script>
+    <div id="openapi">
+
+    <script src="//pagecdn.io/lib/swagger-ui/v3.31.1/swagger-ui-bundle.js"></script>
+    <script>
+        window.onload = function () {
+            const ui = SwaggerUIBundle({
+                url: "swagger.yaml", 
+                dom_id: "#openapi"
+            })
+        }
+    </script>
 </body>
 </html>
