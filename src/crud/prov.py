@@ -239,14 +239,17 @@ async def draw_provenance(
     doc = ProvDocument()
     doc.set_default_namespace('https://www.w3.org/TR/prov-dm/')
 
-    for a in activities:
+    # sort activities based on end time
+    sorted_activities = sorted(activities, key=lambda x: x.end_time)
+    for i, a in enumerate(sorted_activities, start=1):
         doc.activity(
             a.name.replace(':', '_'),
             a.start_time,
             a.end_time,
             {
                 'id': a.id,
-                'type': a.type
+                'type': a.type,
+                'series': i
             }
         )
 
@@ -292,21 +295,21 @@ async def draw_provenance(
             )
             doc.generation(entity.name, a.name)
 
-        doc.start(
-            activity=a.name,
-            trigger=workflow_entity.name,
-            other_attributes={
-                'time': a.start_time
-            }
-        )
+    doc.start(
+        activity=sorted_activities[0].name,
+        trigger=workflow_entity.name,
+        other_attributes={
+            'time': sorted_activities[0].start_time
+        }
+    )
 
-        doc.end(
-            activity=a.name,
-            trigger=workflow_entity.name,
-            other_attributes={
-                'time': a.end_time
-            }
-        )
+    doc.end(
+        activity=sorted_activities[-1].name,
+        trigger=workflow_entity.name,
+        other_attributes={
+            'time': sorted_activities[-1].end_time
+        }
+    )
 
     person = session.query(Agent).filter(
         Agent.workflow_execution_id == workflow_execution.id,

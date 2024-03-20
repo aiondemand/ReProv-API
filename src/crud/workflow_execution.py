@@ -143,6 +143,14 @@ async def execute_workflow(
 
         spec_file_with_mapping_step = add_mapping_step(workflow_registry.spec_file_content.encode('utf-8'))
         spec_file_without_placeholders, needed_entities = replace_placeholders(spec_file_with_mapping_step)
+        if spec_file_without_placeholders is None and needed_entities is None:
+            return Response(
+                success=False,
+                message="Invalid entity id in placeholder",
+                error_code=404,
+                data={}
+            )
+
         spec_temp_file.write(spec_file_without_placeholders)
 
     inputs = {"parameters": {}}
