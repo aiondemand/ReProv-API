@@ -138,6 +138,19 @@ async def update_workflow(
     input_file: UploadFile = File(None),
     user: User = Depends(authenticate_user)
 ):
+    workflow = session.query(WorkflowRegistry).filter(
+        WorkflowRegistry.id == registry_id,
+        WorkflowRegistry.group == user.group
+    ).first()
+
+    if workflow is None:
+        return Response(
+            success=False,
+            message="Invalid registry_id",
+            error_code=404,
+            data={}
+        )
+
     fields_to_update = {
         k: v for k, v in {
             'name': name,
