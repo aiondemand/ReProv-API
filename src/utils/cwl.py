@@ -83,7 +83,7 @@ def replace_placeholders(spec_file):
             entity_id = i['valueFromEntity'].strip('{}')
             entity = session.query(Entity).filter(Entity.id == entity_id).first()
             if entity is None:
-                return None
+                return None, None
 
             entities.append(
                 {
