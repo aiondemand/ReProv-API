@@ -13,30 +13,28 @@ def create_routers(app):
     app.include_router(
         workflow_registry_router,
         prefix="/workflow_registry",
-        tags=["workflow_registry"]
+        tags=["Workflow Registry"]
     )
     app.include_router(
         workflow_execution_router,
         prefix="/workflow_execution",
-        tags=["workflow_execution"]
+        tags=["Workflow Execution"]
     )
     app.include_router(
         prov_router,
         prefix="/provenance",
-        tags=["provenance"]
+        tags=["Provenance"]
     )
 
 
 def start_application():
-    app = FastAPI(title='Provenance API')
+    app = FastAPI(
+        title='Provenance API',
+        swagger_ui_parameters={"defaultModelsExpandDepth": -1}
+    )
     create_tables()
     create_routers(app)
     return app
 
 
 app = start_application()
-
-
-@app.get("/")
-def home():
-    return {}
