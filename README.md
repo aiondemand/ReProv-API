@@ -1,4 +1,5 @@
 
+  
 
 # Provenance-API
 
@@ -41,17 +42,9 @@ In order to install the platform locally, follow the steps outlined below
 #### Move into the local directory and create the new virtual environment
 
     cd provenance-api
-    python -m venv venv
-    source venv/bin/activate
-
-#### Install dependencies (this may take a few minutes)
-
-    pip install -r requirements.txt
 
 #### Create a *.env* file
-
     touch .env
-
 #### Add values to the `.env` file
 The values you add to the `.env` file are the ones that should be defined in order to run the application. Each value should follow the format `KEY=VALUE`, where `KEY` is the name of the environment variable and `VALUE` is its corresponding value.
 
@@ -85,6 +78,42 @@ Create and start all 3 containers using *docker-compose*.
 
     docker-compose up -d
 
+If you want to delete all 3 containers without deleting the data created
+    
+    docker-compose down
+
+If you want to delete all 3 containers alongside with the data created
+
+    docker-compose down -v
+    
+#### If you want to further develop API
+Create a new virtual environment
+
+    python -m venv venv
+    source venv/bin/activate
+
+#### Install dependencies (this may take a few minutes)
+
+    pip install -r requirements.txt
+#### Start keycloak and database
+
+    docker-compose up -d prov-db prov-keycloak
+#### Configure .env file again
+
+#### Find the IP addresses of prov-keycloak and prov-db containers
+
+    prov_db_addr = $(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' prov-db)
+    prov_keycloak_addr = $(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' prov-keycloak)
+
+#### Change the following variables at .env file
+
+    KEYCLOAK_SERVER_URL=prov_db_addr
+    MYSQL_SERVER=prov_db_addr
+
+#### Run Uvicorn Server locally
+
+    cd src
+    uvicorn main:app --host=0.0.0.0 --port=8000 --reload --env-file ../.env
 
 Once started, you should be able to
 
@@ -93,13 +122,8 @@ Instructions for using the API will be provided in the next sections
  3. Visit Keycloak at http://localhost:8080/ . In the current configuration Keylcoak is filled with 5 users and 2 groups. Each user has credentials of the form *user_i / password_i* where i $\in [1,\dots,5]$.
  You can have admin access by using the credentials defined above. 
 
-If you want to delete all 3 containers without deleting the data created
-    
-    docker-compose down
 
-If you want to delete all 3 containers alongside with the data created
 
-    docker-compose down -v
 
 ## Usage
 
@@ -453,4 +477,4 @@ Basic components of data provenance are Entities and Activities as described in 
 Two example outputs can be seen here:
 
 
-<img src="media/prov1.png" width="450" height="200"> <img src="media/prov2.png" width="450" height="200">
+<img src="media/prov1.png" width="400" height="200"> <img src="media/prov2.png" width="350" height="200">
