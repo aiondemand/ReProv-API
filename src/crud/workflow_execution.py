@@ -359,7 +359,7 @@ async def delete_workflow_execution(
             return Response(
                 success=False,
                 message="Problem while deleting REANA workflow: " + str(e),
-                error_code=403,
+                error_code=503,
                 data={}
             )
 
