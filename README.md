@@ -83,7 +83,7 @@ Note that `KEYCLOAK_CLIENT_SECRET` must have empty value as demonstrated below
 
 Create and start all 3 containers using *docker-compose*.
 
-    docker compose up -d
+    docker-compose up -d
 
 
 Once started, you should be able to
@@ -93,6 +93,13 @@ Instructions for using the API will be provided in the next sections
  3. Visit Keycloak at http://localhost:8080/ . In the current configuration Keylcoak is filled with 5 users and 2 groups. Each user has credentials of the form *user_i / password_i* where i $\in [1,\dots,5]$.
  You can have admin access by using the credentials defined above. 
 
+If you want to delete all 3 containers without deleting the data created
+    
+    docker-compose down
+
+If you want to delete all 3 containers alongside with the data created
+
+    docker-compose down -v
 
 ## Usage
 
