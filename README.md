@@ -23,15 +23,16 @@ All three components are deployed in a **dockerized** environment in order to en
 exploration of workflow dependencies and data flow.
 
 
-## Installation
-####  Prerequisites
+## Prerequisites
 - `Linux / macOS`
 - `Python version >= 3.10 (preferably 3.10)`
 - `docker version >= 24.0.7`
 - `docker-compose version >= 1.29.2`
 -  Access to an installed *REANA* instance. You will need *URL* of the service along with the corresponding *ACCESS TOKEN* . If you are collaborating with *[ID-IS](https://www.iit.demokritos.gr/labs/idis/)* group, feel free to contact ant.ganios@iit.demokritos.gr for more details on this.
 
-### Run
+## Local Installation
+In order to install the platform locally, follow the steps outlined below 
+
 #### Clone the repository
 	
     git clone https://github.com/id-is/provenance-api
@@ -88,8 +89,29 @@ Once started, you should be able to
 
  1.  Visit the REST API at http://localhost:8000/docs 
 Instructions for using the API will be provided in the next sections
- 3. Visit Keycloak at http://localhost:8080/ . In the current configuration Keylcoak is filled with 5 users and 2 groups. Each user has credentials of the form $user\_i:password\_i$ where $\;i\in \{1,\dots,5\}$.
+ 3. Visit Keycloak at http://localhost:8080/ . In the current configuration Keylcoak is filled with 5 users and 2 groups. Each user has credentials of the form *user_i / password_i* where i $\in [1,\dots,5]$.
  You can have admin access by using the credentials defined above. 
-The Swagger documentation for this API is available [here](api.json).
+
 
 ## Usage
+
+#### Authenticate
+Fisrt thing that you have to do is authenticate from the API  against Keycloak service. 
+You'll find the authentication button located at the top right of the screen.
+
+![screenshot](https://github.com/id-is/provenance-api/blob/10-add-readme-file/media/authorize_button.png)
+
+After you click on it, the authentication prompt will be opened. You have to add *api* to *client_id* field as it is demonstrated next.
+
+![screenshot](https://github.com/id-is/provenance-api/blob/10-add-readme-file/media/authorize_prompt.png)
+
+
+Next, click authorize button and you will be redirected to keycloak to fill your credentials. In this example, we are using *user_1* for user and *password_1* for password.
+
+![screenshot](https://github.com/id-is/provenance-api/blob/10-add-readme-file/media/keycloak_prompt.png)
+
+
+Finally, if the credentials are correct, you are done with the authentication process and the following screen must appear.
+
+![screenshot](https://github.com/id-is/provenance-api/blob/10-add-readme-file/media/authorize_response.png)
+
