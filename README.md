@@ -17,11 +17,11 @@ All three components are deployed in a **dockerized** environment in order to en
 ## Key Features
 
  - User authentication using keycloak
- - Registration of a workflow ([CWL](https://www.commonwl.org/) workflows are currently supported).
- - Integrate with REANA system to execute previously registered workflows.
+ - Workflow registration ([CWL](https://www.commonwl.org/) workflows are currently supported).
+ - Integration with REANA system to execute previously registered workflows.
  - [CRUD](https://www.codecademy.com/article/what-is-crud) operations both for registered and executed workflows.
- - Capture data provenance for previously executed workflow.
- -  Visualize data provenance by generating graph-based PNG representations, allowing for clear and intuitive 
+ - Data provenance for workflows executed within the REANA framework.
+ - Visualization of data provenance by generating graph-based PNG representations, allowing for clear and intuitive 
 exploration of workflow dependencies and data flow.
 
 
@@ -30,7 +30,7 @@ exploration of workflow dependencies and data flow.
 - `Python version >= 3.10 (preferably 3.10)`
 - `docker version >= 24.0.7`
 - `docker-compose version >= 1.29.2`
--  Access to an installed *REANA* instance. You will need *URL* of the service along with the corresponding *ACCESS TOKEN* . If you are collaborating with *[ID-IS](https://www.iit.demokritos.gr/labs/idis/)* group, feel free to contact ant.ganios@iit.demokritos.gr for more details on this.
+-  Access to an operational *REANA* instance. You will need *URL* of the service along with the corresponding *ACCESS TOKEN* . 
 
 ## Local Installation
 In order to install the platform locally, follow the steps outlined below 
@@ -45,6 +45,7 @@ In order to install the platform locally, follow the steps outlined below
 
 #### Create a *.env* file
     touch .env
+    
 #### Add values to the `.env` file
 The values you add to the `.env` file are the ones that should be defined in order to run the application. Each value should follow the format `KEY=VALUE`, where `KEY` is the name of the environment variable and `VALUE` is its corresponding value.
 
