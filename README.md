@@ -12,6 +12,8 @@ The project consists of three key components:
 
 All three components are deployed in a **dockerized** environment in order to ensure *scalability*, *portability*, and *ease of management*.
 
+This work assumes a platform and core components in line with the architecture specified as part of the HEurope project [AI4Europe](https://cordis.europa.eu/project/id/101070000). 
+
 
 
 ## Key Features
