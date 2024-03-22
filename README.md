@@ -460,7 +460,7 @@ Basic components of data provenance are Entities and Activities as described in 
    
  - **/provenance/draw/**
 	 - Method: ***GET***
-	 - Description:   Create a graphical represenation of provenance for workflow with specific *reana_name* and *reana_run number*
+	 - Description:   Create a graphical represenation of provenance for workflow with specific *reana_name* and *reana_run number* by utilizing the [PyProv](https://pypi.org/project/pyprov/) module.
 	 
 	 **Parameters**:
     |name| type|
