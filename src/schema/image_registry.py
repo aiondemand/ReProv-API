@@ -1,7 +1,6 @@
 from sqlalchemy import Column, Integer, String
 from sqlalchemy.dialects.mysql import LONGTEXT
 from .init_db import Base
-from pydantic import BaseModel
 
 
 class ImageRegistry(Base):
