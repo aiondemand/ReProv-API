@@ -163,10 +163,14 @@ async def execute_workflow(
                 inputs["parameters"][k] = v
 
     for entity in needed_entities:
-        inputs['parameters'][entity['id']] = {
-            'class': 'File',
-            'path': entity['data'].name
-        }
+        if entity['type'] == 'aiod-platform':
+            content_url = entity['data']['distribution'][0]['content_url']
+            path = content_url[len('file://'):]
+
+            inputs['parameters'][entity['id']] = {
+                'class': 'File',
+                'path': content_url.split('/')[-1],
+            }
 
     try:
         reana_workflow = client.create_workflow_from_json(
@@ -190,20 +194,32 @@ async def execute_workflow(
 
     try:
         for entity in needed_entities:
-            prev_execution = session.query(WorkflowExecution.reana_id).filter(WorkflowExecution.id == entity['data'].workflow_execution_id).first()
-            file_name = entity['data'].path
-            downloaded_entity = client.download_file(
-                workflow=prev_execution.reana_id,
-                file_name=file_name,
-                access_token=os.environ['REANA_ACCESS_TOKEN'],
-            )
+            if entity['type'] == 'valueFromEntity':
+                prev_execution = session.query(WorkflowExecution.reana_id).filter(WorkflowExecution.id == entity['data'].workflow_execution_id).first()
+                file_name = entity['data'].path
+                downloaded_entity = client.download_file(
+                    workflow=prev_execution.reana_id,
+                    file_name=file_name,
+                    access_token=os.environ['REANA_ACCESS_TOKEN'],
+                )
 
-            client.upload_file(
-                workflow=reana_workflow['workflow_id'],
-                file_=downloaded_entity[0],
-                file_name=entity['data'].name,
-                access_token=os.environ['REANA_ACCESS_TOKEN']
-            )
+                client.upload_file(
+                    workflow=reana_workflow['workflow_id'],
+                    file_=downloaded_entity[0],
+                    file_name=entity['data'].name,
+                    access_token=os.environ['REANA_ACCESS_TOKEN']
+                )
+            elif entity['type'] == 'aiod-platform':
+                content_url = entity['data']['distribution'][0]['content_url']
+                path = content_url[len('file://'):]
+                with open(path, "rb") as f:
+                    file_content = f.read()
+                client.upload_file(
+                    workflow=reana_workflow['workflow_id'],
+                    file_=file_content,
+                    file_name=content_url.split('/')[-1],
+                    access_token=os.environ['REANA_ACCESS_TOKEN']
+                )
 
         workflow_run = client.start_workflow(
             workflow=reana_workflow['workflow_id'],

@@ -1,7 +1,6 @@
 from io import BytesIO
+import requests
 from ruamel.yaml import YAML
-from schema.init_db import session
-from schema.prov import Entity
 
 yaml = YAML(typ='safe', pure=True)
 
@@ -77,22 +76,37 @@ def add_mapping_step(spec_file):
 # returns the new specification file and the entities that need to be retrieved
 def replace_placeholders(spec_file):
     entities = []
-    data = yaml.load(spec_file)
-    for i in data['inputs']:
-        if 'valueFromEntity' in i.keys():
-            entity_id = i['valueFromEntity'].strip('{}')
-            entity = session.query(Entity).filter(Entity.id == entity_id).first()
-            if entity is None:
+    spec_file_yaml = yaml.load(spec_file)
+    for i in spec_file_yaml['inputs']:
+        if 'valueFromPlatform' in i.keys():
+
+            dataset_url = i['valueFromPlatform'].strip('{}')
+            url = f"{dataset_url}?schema=aiod"
+            headers = {'accept': 'application/json'}
+            response = requests.get(url, headers=headers)
+            if response.status_code != 200:
                 return None, None
 
+            data = response.json()
             entities.append(
                 {
                     'id': i['id'],
-                    'data': entity
+                    'type': 'aiod-platform',
+                    'data': data
                 }
             )
-            del i['valueFromEntity']  # delete it from cwl
+            del i['valueFromPlatform']  # delete it from cwl
+
+            for s in spec_file_yaml['steps']:
+                spec_file_yaml['steps'][s]['requirements'] = {}
+                spec_file_yaml['steps'][s]['requirements'] = {
+                    "InitialWorkDirRequirement": {
+                        "listing": []
+                    }
+                }
+                if i['id'] in spec_file_yaml['steps'][s]['in']:
+                    spec_file_yaml['steps'][s]['requirements']['InitialWorkDirRequirement']['listing'].append(f"$(inputs.{i['id']})")
 
     with BytesIO() as output_yaml:
-        yaml.dump(data, output_yaml)
+        yaml.dump(spec_file_yaml, output_yaml)
         return output_yaml.getvalue(), entities

@@ -15,6 +15,7 @@ from models.user import User
 from ruamel.yaml import YAML
 from reana_client.api import client
 from models.response import Response
+import json
 
 router = APIRouter()
 
@@ -76,11 +77,21 @@ async def track_provenance(
         file_name='outputs/map.txt'
     )[0].decode('utf-8').split('\n')
 
+    input_file_content = json.loads(
+        client.download_file(
+            workflow=workflow_execution.reana_id,
+            access_token=os.environ['REANA_ACCESS_TOKEN'],
+            file_name='inputs.json'
+        )[0].decode('utf-8')
+    )
+
     map_df = pd.DataFrame([line.split(',') for line in map_file_content if line], columns=['filename', 'entity_name'])
 
     intermediate_files = [f for f in workflow_files if f['name'].startswith('cwl/') and f['name'].split('/')[-1] in map_df['entity_name'].values]
     output_files = [f for f in workflow_files if f['name'].startswith('outputs/') and f['name'].split('/')[-1] != 'map.txt']
     spec_file = [f for f in workflow_files if f['name'] == 'workflow.json'][0]
+
+    external_files = [f for f in workflow_files if f not in intermediate_files + output_files + [spec_file] and f['name'].split('/')[-1] != 'map.txt']
 
     # create entity for the whole workflow
     workflow_entity = Entity(
@@ -116,7 +127,18 @@ async def track_provenance(
         ) for o_file in output_files
     ]
 
-    entities = [workflow_entity] + intermediate_entities + output_entities
+    external_entities = [
+        Entity(
+            type='external_file',
+            path=e_file['name'],
+            name=e_file['name'].split('/')[-1].replace(':', '_'),
+            size=e_file['size']['human_readable'],
+            last_modified=datetime.fromisoformat(e_file['last-modified']),
+            workflow_execution_id=workflow_execution.id
+        ) for e_file in external_files
+    ]
+
+    entities = [workflow_entity] + intermediate_entities + output_entities + external_entities
 
     step_activities = [
         Activity(
@@ -149,14 +171,16 @@ async def track_provenance(
         step_file_outputs = [o['id'] for o in data['steps'][s]['run']['outputs'] if o['type'] == 'File']
 
         # for each input file in step (f):
-        # this file wasUsedBy the corresponding entity (eneity_name) with filename=map_df.loc['filename'=f]
+        # this file wasUsedBy the corresponding entity (entity_name) with filename=map_df.loc['filename'=f]
         for f in step_file_inputs:
             # check if is external file
             external_input = False
             for i in data['inputs']:
-                if 'valueFromEntity' in i:
-                    entity = session.query(Entity).filter(Entity.id == i['valueFromEntity'].strip('{}')).first()
-                    external_input = True
+                if 'valueFromPlatform' in i:
+                    for key, value in input_file_content.items():
+                        if key == f:
+                            entity = [e for e in external_entities if e.name == value['path']][0]
+                            external_input = True
 
             if not external_input:
                 entity_name = map_df.loc[map_df['filename'] == f].to_dict('records')[0]['entity_name']

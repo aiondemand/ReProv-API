@@ -8,7 +8,7 @@ class Entity(Base):
     __tablename__ = 'entity'
 
     id = Column(Integer, autoincrement=True, primary_key=True)
-    type = Column(Enum('workflow', 'workflow_intermediate_result_file', 'workflow_final_result_file'))
+    type = Column(Enum('workflow', 'workflow_intermediate_result_file', 'workflow_final_result_file', 'external_file'))
     path = Column(String(255), nullable=False)
     name = Column(String(255), nullable=False)
     size = Column(String(255), nullable=True)
