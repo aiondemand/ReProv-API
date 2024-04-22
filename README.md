@@ -179,14 +179,14 @@ Each workflow that is registered in our platform is associated with the followin
 	    -   Previously defined Docker images.
 	    -   Linux basic commands available in the execution environment.
 		- you can see an example [here](https://github.com/id-is/provenance-examples/blob/master/workflows/mnist/mnist.cwl): 
-	- A special feature is the fact that user is allowed to specify inputs for the workflow by using outputs of previously executed workflows. Each output (alongside with the intermediate files) is stored in our DB so the user can reference it just by the ID assigned to it. Using the keyword `valueFromEntity` on the inputs section of the workflow it is possible to have interaction between different workflows. Syntax is presented below:
+	- A special feature is the fact that user is allowed to specify inputs for the workflow by using entities that are defined in the AIoD platform using the corresponding URL of the entity. Using the keyword `valueFromPlatform` on the inputs section of the workflow it is possible to have interaction between different workflows. Syntax is presented below:
    ```yaml
   inputs:
   - id: input_file
        type: File
-       valueFromEntity: "{{<ID>}}"  
-  ``` 
-  - you can see an example [here](https://github.com/id-is/provenance-examples/blob/master/workflows/hist/hist.cwl): 
+       valueFromPlatform: "{{<URL>}}"  
+  ```
+  - you can see an example [here](https://github.com/id-is/provenance-examples/blob/master/workflows/mnist-aiod/mnist-aiod.cwl): 
 	 
 - *`input_file`*: Input file in *YAML* format that allows workflow to use non-default values for its variables.
 	- you can see an example [here](https://github.com/id-is/provenance-examples/blob/master/workflows/mnist/mnist.yaml):  
