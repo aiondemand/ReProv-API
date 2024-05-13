@@ -63,8 +63,8 @@ async def track_provenance(
     workflow_spec_file = session.query(WorkflowRegistry).filter(WorkflowRegistry.id == workflow_execution.registry_id).first().spec_file_content
 
     yaml = YAML(typ='safe', pure=True)
-    data = yaml.load(workflow_spec_file)
-
+    spec_file_yaml = yaml.load(workflow_spec_file)
+    
     workflow_execution_steps = session.query(WorkflowExecutionStep).filter(WorkflowExecutionStep.workflow_execution_id == workflow_execution.id).all()
 
     workflow_files = client.list_files(
@@ -163,19 +163,19 @@ async def track_provenance(
     for a in activities:
         session.add(a)
 
-    for s in data['steps']:
+    for s in spec_file_yaml['steps']:
         if s == 'map':  # ignore map step
             continue
 
-        step_file_inputs = [key for key, value in data['steps'][s]['run']['inputs'].items() if value == 'File']
-        step_file_outputs = [o['id'] for o in data['steps'][s]['run']['outputs'] if o['type'] == 'File']
+        step_file_inputs = [key for key, value in spec_file_yaml['steps'][s]['run']['inputs'].items() if value == 'File']
+        step_file_outputs = [o['id'] for o in spec_file_yaml['steps'][s]['run']['outputs'] if o['type'] == 'File']
 
         # for each input file in step (f):
         # this file wasUsedBy the corresponding entity (entity_name) with filename=map_df.loc['filename'=f]
         for f in step_file_inputs:
             # check if is external file
             external_input = False
-            for i in data['inputs']:
+            for i in spec_file_yaml['inputs']:
                 if 'valueFromPlatform' in i:
                     for key, value in input_file_content.items():
                         if key == f:
@@ -183,9 +183,15 @@ async def track_provenance(
                             external_input = True
 
             if not external_input:
-                entity_name = map_df.loc[map_df['filename'] == f].to_dict('records')[0]['entity_name']
-                entity = [e for e in entities if e.name == entity_name][0]
-
+                f_in = spec_file_yaml['steps'][s]['in'][f].split('/')
+                if len(f_in) == 1:
+                    entity_name = map_df.loc[map_df['filename'] == f].to_dict('records')[0]['entity_name']
+                    entity = [e for e in entities if e.name == entity_name][0]
+                else:
+                    id = f_in[1]
+                    entity_name = map_df.loc[map_df['filename'] == id].to_dict('records')[0]['entity_name']
+                    entity = [e for e in entities if e.name == entity_name][0]
+ 
             activity = [a for a in step_activities if a.name == s][0]
             activity.used.append(entity)
             session.add(activity)
