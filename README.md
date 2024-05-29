@@ -1,7 +1,7 @@
 
   
 
-# Provenance-API
+# ReProv-API
 
 This repository is an API-based solution enabling users to register and execute workflows seamlessly by integrating with the [REANA](https://reanahub.io/) execution system. It also offers the capability to capture and visualize data provenance of the workflow executions, based on the [W3C-PROV](https://www.w3.org/TR/prov-o/) standard.
 
@@ -39,11 +39,11 @@ In order to install the platform locally, follow the steps outlined below
 
 #### Clone the repository
 	
-    git clone https://github.com/id-is/provenance-api
+    git clone https://github.com/id-is/ReProv-API
 
 #### Move into the local directory and create the new virtual environment
 
-    cd provenance-api
+    cd ReProv-API
 
 #### Create a *.env* file
     touch .env
