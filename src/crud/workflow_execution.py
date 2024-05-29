@@ -138,7 +138,6 @@ async def execute_workflow(
             error_code=404,
             data={}
         )
-
     with tempfile.NamedTemporaryFile(dir=os.getcwd(), suffix='.cwl', delete=False) as spec_temp_file:
 
         spec_file_with_mapping_step = add_mapping_step(workflow_registry.spec_file_content.encode('utf-8'))
@@ -173,6 +172,7 @@ async def execute_workflow(
             }
 
     try:
+
         reana_workflow = client.create_workflow_from_json(
             name=f"{workflow_registry.name}:{workflow_registry.version}",
             access_token=os.environ['REANA_ACCESS_TOKEN'],
@@ -180,7 +180,6 @@ async def execute_workflow(
             parameters=inputs,
             workflow_engine='cwl'
         )
-
     except Exception as e:
         os.remove(os.path.join(os.getcwd(), spec_temp_file.name))
         if workflow_registry.input_file_content:
