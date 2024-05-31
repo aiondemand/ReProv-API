@@ -85,8 +85,7 @@ async def track_provenance(
     map_df = pd.DataFrame([line.split(',') for line in map_file_content if line], columns=['filename', 'entity_name'])
 
     intermediate_files = [f for f in workflow_files if f['name'].startswith('cwl/') and f['name'].split('/')[-1] in map_df['entity_name'].values]
-    output_files = [f for f in workflow_files if        WorkflowExecution.group == user.group
- f['name'].startswith('outputs/') and f['name'].split('/')[-1] != 'map.txt']
+    output_files = [f for f in workflow_files if WorkflowExecution.group == user.group and f['name'].startswith('outputs/') and f['name'].split('/')[-1] != 'map.txt']
     spec_file = [f for f in workflow_files if f['name'] == 'workflow.json'][0]
 
     external_files = [f for f in workflow_files if f not in intermediate_files + output_files + [spec_file] and f['name'].split('/')[-1] != 'map.txt']
