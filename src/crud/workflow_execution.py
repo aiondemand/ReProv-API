@@ -396,20 +396,17 @@ async def delete_workflow_execution(
     description="Download outputs of an executed workflow",
 )
 async def download_outputs(
-    reana_name: str,
-    run_number: int,
+    execution_id: int,
     user: User = Depends(authenticate_user)
 ):
     workflow_execution = session.query(WorkflowExecution).filter(
-        WorkflowExecution.reana_name == reana_name,
-        WorkflowExecution.reana_run_number == run_number,
-        WorkflowExecution.group == user.group
+        WorkflowExecution.id == execution
     ).first()
 
     if workflow_execution is None:
         return Response(
             success=False,
-            message="Invalid reana_name and reana_number combination",
+            message="Invalid execution_id",
             error_code=404,
             data={}
         )
@@ -446,20 +443,17 @@ async def download_outputs(
     description="Download inputs of an executed workflow",
 )
 async def download_inputs(
-    reana_name: str,
-    run_number: int,
+    execution_id: int,
     user: User = Depends(authenticate_user)
 ):
     workflow_execution = session.query(WorkflowExecution).filter(
-        WorkflowExecution.reana_name == reana_name,
-        WorkflowExecution.reana_run_number == run_number,
-        WorkflowExecution.group == user.group
+        WorkflowExecution.id == execution_id
     ).first()
 
     if workflow_execution is None:
         return Response(
             success=False,
-            message="Invalid reana_name and reana_number combination",
+            message="Invalid execution_id",
             error_code=404,
             data={}
         )
