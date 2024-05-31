@@ -22,22 +22,19 @@ router = APIRouter()
 
 @router.get(
     "/capture/",
-    description="Capture provenance for workflow with specific name & run number",
+    description="Capture provenance for workflow with specific execution_id",
 )
 async def track_provenance(
-    reana_name: str,
-    run_number: int,
+    execution_id: int,
     user: User = Depends(authenticate_user)
 ):
     workflow_execution = session.query(WorkflowExecution).filter(
-        WorkflowExecution.reana_name == reana_name,
-        WorkflowExecution.reana_run_number == run_number,
-        WorkflowExecution.group == user.group
+        WorkflowExecution.id == execution_id
     ).first()
     if workflow_execution is None:
         return Response(
             success=False,
-            message="Invalid reana_name and reana_number combination",
+            message="Invalid execution_id",
             error_code=404,
             data={}
         )
@@ -88,7 +85,8 @@ async def track_provenance(
     map_df = pd.DataFrame([line.split(',') for line in map_file_content if line], columns=['filename', 'entity_name'])
 
     intermediate_files = [f for f in workflow_files if f['name'].startswith('cwl/') and f['name'].split('/')[-1] in map_df['entity_name'].values]
-    output_files = [f for f in workflow_files if f['name'].startswith('outputs/') and f['name'].split('/')[-1] != 'map.txt']
+    output_files = [f for f in workflow_files if        WorkflowExecution.group == user.group
+ f['name'].startswith('outputs/') and f['name'].split('/')[-1] != 'map.txt']
     spec_file = [f for f in workflow_files if f['name'] == 'workflow.json'][0]
 
     external_files = [f for f in workflow_files if f not in intermediate_files + output_files + [spec_file] and f['name'].split('/')[-1] != 'map.txt']
@@ -154,7 +152,8 @@ async def track_provenance(
         name=f"{workflow_execution.reana_name.replace(':','_')}_{workflow_execution.reana_run_number}",
         start_time=workflow_execution.start_time,
         end_time=workflow_execution.end_time,
-        workflow_execution_id=workflow_execution.id
+        workflow_execution_id=workflow_execution.id        WorkflowExecution.group == user.group
+
     )
     activities = [workflow_activity] + step_activities
 
@@ -233,22 +232,19 @@ async def track_provenance(
 
 @router.get(
     "/draw/",
-    description="Create a graphical represenation of provenance for workflow with specific reana_name and run number",
+    description="Create a graphical represenation of provenance for workflow with specific execution id",
 )
 async def draw_provenance(
-    reana_name: str,
-    run_number: int,
+    execution_id: int,
     user: User = Depends(authenticate_user)
 ):
     workflow_execution = session.query(WorkflowExecution).filter(
-        WorkflowExecution.reana_name == reana_name,
-        WorkflowExecution.reana_run_number == run_number,
-        WorkflowExecution.group == user.group
+        WorkflowExecution.id == execution_id
     ).first()
     if workflow_execution is None:
         return Response(
             success=False,
-            message="Invalid reana_name and reana_number combination",
+            message="Invalid execution_id",
             error_code=404,
             data={}
         )
@@ -379,7 +375,7 @@ async def draw_provenance(
         activity=workflow_activity.name
     )
 
-    png_name = f"{reana_name}:{run_number}-provenance.png"
+    png_name = f"{workflow_execution.reana_name}:{workflow_execution.run_number}-provenance.png"
     prov_to_dot(doc).write_png(png_name)
 
     def _delete_png_file():
