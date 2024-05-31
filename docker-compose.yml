@@ -7,7 +7,7 @@ services:
       - .env
     build: .
     ports:
-      - "8000:8000"
+      - "9090:9090"
     depends_on:
       db:
         condition: service_healthy
