@@ -15,6 +15,7 @@ from models.user import User
 from ruamel.yaml import YAML
 from reana_client.api import client
 from models.response import Response
+from sqlalchemy.exc import SQLAlchemyError
 import json
 
 router = APIRouter()
@@ -28,9 +29,19 @@ async def track_provenance(
     execution_id: int,
     user: User = Depends(authenticate_user)
 ):
-    workflow_execution = session.query(WorkflowExecution).filter(
-        WorkflowExecution.id == execution_id
-    ).first()
+    try:
+        workflow_execution = session.query(WorkflowExecution).filter(
+            WorkflowExecution.id == execution_id
+        ).first()
+    except SQLAlchemyError as e:
+        session.rollback()
+        return Response(
+            success=False,
+            message=f"Database error: {str(e)}",
+            error_code=500,
+            data={}
+        )
+
     if workflow_execution is None:
         return Response(
             success=False,
@@ -48,7 +59,17 @@ async def track_provenance(
             data={}
         )
 
-    previously_captured = session.query(Activity).filter(Activity.workflow_execution_id == workflow_execution.id).first()
+    try:
+        previously_captured = session.query(Activity).filter(Activity.workflow_execution_id == workflow_execution.id).first()
+    except SQLAlchemyError as e:
+        session.rollback()
+        return Response(
+            success=False,
+            message=f"Database error: {str(e)}",
+            error_code=500,
+            data={}
+        )
+    
     if previously_captured:
         return Response(
             success=False,
@@ -57,12 +78,30 @@ async def track_provenance(
             data={}
         )
 
-    workflow_spec_file = session.query(WorkflowRegistry).filter(WorkflowRegistry.id == workflow_execution.registry_id).first().spec_file_content
+    try:
+        workflow_spec_file = session.query(WorkflowRegistry).filter(WorkflowRegistry.id == workflow_execution.registry_id).first().spec_file_content
+    except SQLAlchemyError as e:
+        session.rollback()
+        return Response(
+            success=False,
+            message=f"Database error: {str(e)}",
+            error_code=500,
+            data={}
+        )
 
     yaml = YAML(typ='safe', pure=True)
     spec_file_yaml = yaml.load(workflow_spec_file)
     
-    workflow_execution_steps = session.query(WorkflowExecutionStep).filter(WorkflowExecutionStep.workflow_execution_id == workflow_execution.id).all()
+    try:
+        workflow_execution_steps = session.query(WorkflowExecutionStep).filter(WorkflowExecutionStep.workflow_execution_id == workflow_execution.id).all()
+    except SQLAlchemyError as e:
+        session.rollback()
+        return Response(
+            success=False,
+            message=f"Database error: {str(e)}",
+            error_code=500,
+            data={}
+        )
 
     workflow_files = client.list_files(
         workflow=workflow_execution.reana_id,
@@ -155,10 +194,19 @@ async def track_provenance(
     )
     activities = [workflow_activity] + step_activities
 
-    for e in entities:
-        session.add(e)
-    for a in activities:
-        session.add(a)
+    try:
+        for e in entities:
+            session.add(e)
+        for a in activities:
+            session.add(a)
+    except SQLAlchemyError as e:
+        session.rollback()
+        return Response(
+            success=False,
+            message=f"Database error: {str(e)}",
+            error_code=500,
+            data={}
+        )
 
     for s in spec_file_yaml['steps']:
         if s == 'map':  # ignore map step
@@ -191,7 +239,16 @@ async def track_provenance(
  
             activity = [a for a in step_activities if a.name == s][0]
             activity.used.append(entity)
-            session.add(activity)
+            try:
+                session.add(activity)
+            except SQLAlchemyError as e:
+                session.rollback()
+                return Response(
+                    success=False,
+                    message=f"Database error: {str(e)}",
+                    error_code=500,
+                    data={}
+                )
 
         for f in step_file_outputs:
             entity_name = map_df.loc[map_df['filename'] == f].to_dict('records')[0]['entity_name']
@@ -199,28 +256,56 @@ async def track_provenance(
             activity = [a for a in step_activities if a.name == s][0]
 
             activity.generated.append(entity)
-            session.add(activity)
+            try:
+                session.add(activity)
+            except SQLAlchemyError as e:
+                session.rollback()
+                return Response(
+                    success=False,
+                    message=f"Database error: {str(e)}",
+                    error_code=500,
+                    data={}
+                )
 
     for e in output_entities:
         workflow_activity.generated.append(e)
-        session.add(workflow_activity)
+        try:
+            session.add(workflow_activity)
+        except SQLAlchemyError as e:
+            session.rollback()
+            return Response(
+                success=False,
+                message=f"Database error: {str(e)}",
+                error_code=500,
+                data={}
+            )
 
-    session.add(workflow_entity)
-    agent = Agent(
-        type='person',
-        name=workflow_execution.username,
-        workflow_execution_id=workflow_execution.id
-    )
-    session.add(agent)
+    try:
+        session.add(workflow_entity)
+        agent = Agent(
+            type='person',
+            name=workflow_execution.username,
+            workflow_execution_id=workflow_execution.id
+        )
+        session.add(agent)
 
-    software = Agent(
-        type='software',
-        name='software executing experiments',
-        workflow_execution_id=workflow_execution.id
-    )
-    session.add(software)
+        software = Agent(
+            type='software',
+            name='software executing experiments',
+            workflow_execution_id=workflow_execution.id
+        )
+        session.add(software)
 
-    session.commit()
+        session.commit()
+    except SQLAlchemyError as e:
+        session.rollback()
+        return Response(
+            success=False,
+            message=f"Database error: {str(e)}",
+            error_code=500,
+            data={}
+        )
+
     return Response(
         success=True,
         message='Provenance retrieved successfully',
@@ -230,15 +315,25 @@ async def track_provenance(
 
 @router.get(
     "/draw/",
-    description="Create a graphical represenation of provenance for workflow with specific execution id",
+    description="Create a graphical representation of provenance for workflow with specific execution id",
 )
 async def draw_provenance(
     execution_id: int,
     user: User = Depends(authenticate_user)
 ):
-    workflow_execution = session.query(WorkflowExecution).filter(
-        WorkflowExecution.id == execution_id
-    ).first()
+    try:
+        workflow_execution = session.query(WorkflowExecution).filter(
+            WorkflowExecution.id == execution_id
+        ).first()
+    except SQLAlchemyError as e:
+        session.rollback()
+        return Response(
+            success=False,
+            message=f"Database error: {str(e)}",
+            error_code=500,
+            data={}
+        )
+
     if workflow_execution is None:
         return Response(
             success=False,
@@ -246,19 +341,29 @@ async def draw_provenance(
             error_code=404,
             data={}
         )
-    activities = session.query(Activity).filter(
-        Activity.workflow_execution_id == workflow_execution.id
-    ).all()
 
-    workflow_entity = session.query(Entity).filter(
-        Entity.workflow_execution_id == workflow_execution.id,
-        Entity.type == 'workflow'
-    ).first()
+    try:
+        activities = session.query(Activity).filter(
+            Activity.workflow_execution_id == workflow_execution.id
+        ).all()
 
-    workflow_activity = session.query(Activity).filter(
-        Activity.workflow_execution_id == workflow_execution.id,
-        Activity.type == 'workflow_execution'
-    ).first()
+        workflow_entity = session.query(Entity).filter(
+            Entity.workflow_execution_id == workflow_execution.id,
+            Entity.type == 'workflow'
+        ).first()
+
+        workflow_activity = session.query(Activity).filter(
+            Activity.workflow_execution_id == workflow_execution.id,
+            Activity.type == 'workflow_execution'
+        ).first()
+    except SQLAlchemyError as e:
+        session.rollback()
+        return Response(
+            success=False,
+            message=f"Database error: {str(e)}",
+            error_code=500,
+            data={}
+        )
 
     doc = ProvDocument()
     doc.set_default_namespace('https://www.w3.org/TR/prov-dm/')
@@ -335,10 +440,24 @@ async def draw_provenance(
         }
     )
 
-    person = session.query(Agent).filter(
-        Agent.workflow_execution_id == workflow_execution.id,
-        Agent.type == 'person'
-    ).first()
+    try:
+        person = session.query(Agent).filter(
+            Agent.workflow_execution_id == workflow_execution.id,
+            Agent.type == 'person'
+        ).first()
+
+        software = session.query(Agent).filter(
+            Agent.workflow_execution_id == workflow_execution.id,
+            Agent.type == 'software'
+        ).first()
+    except SQLAlchemyError as e:
+        session.rollback()
+        return Response(
+            success=False,
+            message=f"Database error: {str(e)}",
+            error_code=500,
+            data={}
+        )
 
     doc.agent(
         person.name,
@@ -346,11 +465,6 @@ async def draw_provenance(
             'type': 'person'
         }
     )
-
-    software = session.query(Agent).filter(
-        Agent.workflow_execution_id == workflow_execution.id,
-        Agent.type == 'software'
-    ).first()
 
     doc.agent(
         software.name,

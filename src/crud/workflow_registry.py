@@ -3,7 +3,7 @@ from models.user import User
 from fastapi import APIRouter, UploadFile, File, Depends
 from schema.workflow_registry import WorkflowRegistry, WorkflowRegistryModel
 from schema.init_db import session
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from ruamel.yaml import YAML
 from authentication.auth import authenticate_user
 
@@ -18,9 +18,18 @@ async def list_workflows(
     user: User = Depends(authenticate_user)
 ):
     yaml = YAML(typ='safe', pure=True)
-    workflows = session.query(WorkflowRegistry).filter(
-        WorkflowRegistry.group == user.group
-    ).all()
+    try:
+        workflows = session.query(WorkflowRegistry).filter(
+            WorkflowRegistry.group == user.group
+        ).all()
+    except SQLAlchemyError as e:
+        session.rollback()
+        return Response(
+            success=False,
+            message=f"Database error: {str(e)}",
+            error_code=500,
+            data={}
+        )
 
     data = [
         {
@@ -49,10 +58,19 @@ async def get_workflow_details(
     user: User = Depends(authenticate_user)
 ):
     yaml = YAML(typ='safe', pure=True)
-    workflow = session.query(WorkflowRegistry).filter(
-        WorkflowRegistry.id == registry_id,
-        WorkflowRegistry.group == user.group
-    ).first()
+    try:
+        workflow = session.query(WorkflowRegistry).filter(
+            WorkflowRegistry.id == registry_id,
+            WorkflowRegistry.group == user.group
+        ).first()
+    except SQLAlchemyError as e:
+        session.rollback()
+        return Response(
+            success=False,
+            message=f"Database error: {str(e)}",
+            error_code=500,
+            data={}
+        )
 
     if workflow is None:
         return Response(
@@ -111,6 +129,14 @@ async def register_workflow(
             error_code=400,
             data={}
         )
+    except SQLAlchemyError as e:
+        session.rollback()
+        return Response(
+            success=False,
+            message=f"Database error: {str(e)}",
+            error_code=500,
+            data={}
+        )
     finally:
         data = {
             'username': user.username,
@@ -138,10 +164,19 @@ async def update_workflow(
     input_file: UploadFile = File(None),
     user: User = Depends(authenticate_user)
 ):
-    workflow = session.query(WorkflowRegistry).filter(
-        WorkflowRegistry.id == registry_id,
-        WorkflowRegistry.group == user.group
-    ).first()
+    try:
+        workflow = session.query(WorkflowRegistry).filter(
+            WorkflowRegistry.id == registry_id,
+            WorkflowRegistry.group == user.group
+        ).first()
+    except SQLAlchemyError as e:
+        session.rollback()
+        return Response(
+            success=False,
+            message=f"Database error: {str(e)}",
+            error_code=500,
+            data={}
+        )
 
     if workflow is None:
         return Response(
@@ -159,10 +194,20 @@ async def update_workflow(
             'input_file_content': input_file.file.read() if input_file else None
         }.items() if v is not None}
 
-    wf_updated = session.query(WorkflowRegistry).filter(
-        WorkflowRegistry.id == registry_id,
-        WorkflowRegistry.group == user.group
-    ).update(fields_to_update)
+    try:
+        wf_updated = session.query(WorkflowRegistry).filter(
+            WorkflowRegistry.id == registry_id,
+            WorkflowRegistry.group == user.group
+        ).update(fields_to_update)
+    except SQLAlchemyError as e:
+        session.rollback()
+        return Response(
+            success=False,
+            message=f"Database error: {str(e)}",
+            error_code=500,
+            data={}
+        )
+
     if wf_updated == 0:
         return Response(
             success=True,
@@ -189,10 +234,20 @@ async def delete_workflow(
     registry_id: int,
     user: User = Depends(authenticate_user)
 ):
-    workflow = session.query(WorkflowRegistry).filter(
-        WorkflowRegistry.id == registry_id,
-        WorkflowRegistry.group == user.group
-    ).first()
+    try:
+        workflow = session.query(WorkflowRegistry).filter(
+            WorkflowRegistry.id == registry_id,
+            WorkflowRegistry.group == user.group
+        ).first()
+    except SQLAlchemyError as e:
+        session.rollback()
+        return Response(
+            success=False,
+            message=f"Database error: {str(e)}",
+            error_code=500,
+            data={}
+        )
+
     if workflow is None:
         return Response(
             success=False,
@@ -201,8 +256,17 @@ async def delete_workflow(
             data={}
         )
 
-    session.delete(workflow)
-    session.commit()
+    try:
+        session.delete(workflow)
+        session.commit()
+    except SQLAlchemyError as e:
+        session.rollback()
+        return Response(
+            success=False,
+            message=f"Database error: {str(e)}",
+            error_code=500,
+            data={}
+        )
 
     data = {
         'registry_id': registry_id

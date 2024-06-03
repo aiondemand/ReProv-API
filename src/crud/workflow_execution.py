@@ -14,8 +14,9 @@ import tempfile
 from datetime import datetime
 import urllib3
 from models.response import Response
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+from sqlalchemy.exc import SQLAlchemyError
 
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 router = APIRouter()
 
@@ -27,9 +28,19 @@ router = APIRouter()
 async def list_executed_workflows(
     user: User = Depends(authenticate_user)
 ):
-    workflow_executions = session.query(WorkflowExecution).filter(
-        WorkflowExecution.group == user.group
-    ).all()
+    try:
+        workflow_executions = session.query(WorkflowExecution).filter(
+            WorkflowExecution.group == user.group
+        ).all()
+    except SQLAlchemyError as e:
+        session.rollback()
+        return Response(
+            success=False,
+            message=f"Database error: {str(e)}",
+            error_code=500,
+            data={}
+        )
+
     data = {}
     for workflow_execution in workflow_executions:
         workflow_data = {
@@ -44,9 +55,18 @@ async def list_executed_workflows(
             'registry_id': workflow_execution.registry_id,
             'steps': []
         }
-        workflow_execution_steps = session.query(WorkflowExecutionStep).filter(
-            WorkflowExecutionStep.workflow_execution_id == workflow_execution.id
-        ).all()
+        try:
+            workflow_execution_steps = session.query(WorkflowExecutionStep).filter(
+                WorkflowExecutionStep.workflow_execution_id == workflow_execution.id
+            ).all()
+        except SQLAlchemyError as e:
+            session.rollback()
+            return Response(
+                success=False,
+                message=f"Database error: {str(e)}",
+                error_code=500,
+                data={}
+            )
         for step in workflow_execution_steps:
             workflow_data['steps'].append(
                 {
@@ -74,10 +94,19 @@ async def get_workflow_execution_by_id(
     execution_id: int,
     user: User = Depends(authenticate_user)
 ):
-    workflow_execution = session.query(WorkflowExecution).filter(
-        WorkflowExecution.id == execution_id,
-        WorkflowExecution.group == user.group
-    ).first()
+    try:
+        workflow_execution = session.query(WorkflowExecution).filter(
+            WorkflowExecution.id == execution_id,
+            WorkflowExecution.group == user.group
+        ).first()
+    except SQLAlchemyError as e:
+        session.rollback()
+        return Response(
+            success=False,
+            message=f"Database error: {str(e)}",
+            error_code=500,
+            data={}
+        )
     if workflow_execution is None:
         return Response(
             success=False,
@@ -97,9 +126,18 @@ async def get_workflow_execution_by_id(
         'registry_id': workflow_execution.registry_id,
         'steps': []
     }
-    workflow_execution_steps = session.query(WorkflowExecutionStep).filter(
-        WorkflowExecutionStep.workflow_execution_id == workflow_execution.id
-    ).all()
+    try:
+        workflow_execution_steps = session.query(WorkflowExecutionStep).filter(
+            WorkflowExecutionStep.workflow_execution_id == workflow_execution.id
+        ).all()
+    except SQLAlchemyError as e:
+        session.rollback()
+        return Response(
+            success=False,
+            message=f"Database error: {str(e)}",
+            error_code=500,
+            data={}
+        )
     for step in workflow_execution_steps:
         data['steps'].append(
             {
@@ -126,10 +164,19 @@ async def execute_workflow(
     background_tasks: BackgroundTasks,
     user: User = Depends(authenticate_user)
 ):
-    workflow_registry = session.query(WorkflowRegistry).filter(
-        WorkflowRegistry.id == registry_id,
-        WorkflowRegistry.group == user.group
-    ).first()
+    try:
+        workflow_registry = session.query(WorkflowRegistry).filter(
+            WorkflowRegistry.id == registry_id,
+            WorkflowRegistry.group == user.group
+        ).first()
+    except SQLAlchemyError as e:
+        session.rollback()
+        return Response(
+            success=False,
+            message=f"Database error: {str(e)}",
+            error_code=500,
+            data={}
+        )
 
     if workflow_registry is None:
         return Response(
@@ -139,7 +186,6 @@ async def execute_workflow(
             data={}
         )
     with tempfile.NamedTemporaryFile(dir=os.getcwd(), suffix='.cwl', delete=False) as spec_temp_file:
-
         spec_file_with_mapping_step = add_mapping_step(workflow_registry.spec_file_content.encode('utf-8'))
         spec_file_without_placeholders, needed_entities = replace_placeholders(spec_file_with_mapping_step)
         if spec_file_without_placeholders is None and needed_entities is None:
@@ -172,7 +218,6 @@ async def execute_workflow(
             }
 
     try:
-
         reana_workflow = client.create_workflow_from_json(
             name=f"{workflow_registry.name}:{workflow_registry.version}",
             access_token=os.environ['REANA_ACCESS_TOKEN'],
@@ -194,7 +239,16 @@ async def execute_workflow(
     try:
         for entity in needed_entities:
             if entity['type'] == 'valueFromEntity':
-                prev_execution = session.query(WorkflowExecution.reana_id).filter(WorkflowExecution.id == entity['data'].workflow_execution_id).first()
+                try:
+                    prev_execution = session.query(WorkflowExecution.reana_id).filter(WorkflowExecution.id == entity['data'].workflow_execution_id).first()
+                except SQLAlchemyError as e:
+                    session.rollback()
+                    return Response(
+                        success=False,
+                        message=f"Database error: {str(e)}",
+                        error_code=500,
+                        data={}
+                    )
                 file_name = entity['data'].path
                 downloaded_entity = client.download_file(
                     workflow=prev_execution.reana_id,
@@ -241,13 +295,13 @@ async def execute_workflow(
         os.remove(os.path.join(os.getcwd(), spec_temp_file.name))
         if workflow_registry.input_file_content:
             os.remove(os.path.join(os.getcwd(), input_temp_file.name))
-            return Response(
-                success=False,
-                message="Problem while starting REANA workflow: " + str(e),
-                error_code=503,
-                data={}
-            )
-
+        session.rollback()
+        return Response(
+            success=False,
+            message="Problem while starting REANA workflow: " + str(e),
+            error_code=503,
+            data={}
+        )
     finally:
         os.remove(os.path.join(os.getcwd(), spec_temp_file.name))
         if workflow_registry.input_file_content:
@@ -270,7 +324,12 @@ async def execute_workflow(
 
 
 async def monitor_execution(reana_id):
-    workflow_execution = session.query(WorkflowExecution).filter(WorkflowExecution.reana_id == reana_id).first()
+    try:
+        workflow_execution = session.query(WorkflowExecution).filter(WorkflowExecution.reana_id == reana_id).first()
+    except SQLAlchemyError as e:
+        session.rollback()
+        return
+
     prev_step = None
     while True:
         workflow_status = client.get_workflow_status(
@@ -281,10 +340,14 @@ async def monitor_execution(reana_id):
         current_step = workflow_status['progress']['current_step_name']
         if current_step != prev_step:  # if a new step is running:
             if prev_step is not None:
-                prev_workflow_execution_step = session.query(WorkflowExecutionStep).filter(
-                    WorkflowExecutionStep.workflow_execution_id == workflow_execution.id,
-                    WorkflowExecutionStep.name == prev_step,
-                ).first()
+                try:
+                    prev_workflow_execution_step = session.query(WorkflowExecutionStep).filter(
+                        WorkflowExecutionStep.workflow_execution_id == workflow_execution.id,
+                        WorkflowExecutionStep.name == prev_step,
+                    ).first()
+                except SQLAlchemyError as e:
+                    session.rollback()
+                    return
                 prev_workflow_execution_step.end_time = datetime.utcnow()
                 prev_workflow_execution_step.status = 'finished' if workflow_status['status'] != 'failed' else 'failed'
                 session.add(prev_workflow_execution_step)
@@ -312,10 +375,14 @@ async def monitor_execution(reana_id):
         access_token=os.environ['REANA_ACCESS_TOKEN']
     )
 
-    last_workflow_execution_step = session.query(WorkflowExecutionStep).filter(
-        WorkflowExecutionStep.workflow_execution_id == workflow_execution.id,
-        WorkflowExecutionStep.name == current_step,
-    ).first()
+    try:
+        last_workflow_execution_step = session.query(WorkflowExecutionStep).filter(
+            WorkflowExecutionStep.workflow_execution_id == workflow_execution.id,
+            WorkflowExecutionStep.name == current_step,
+        ).first()
+    except SQLAlchemyError as e:
+        session.rollback()
+        return
 
     if last_workflow_execution_step is not None:
         last_workflow_execution_step.end_time = datetime.utcnow()
@@ -323,7 +390,12 @@ async def monitor_execution(reana_id):
         session.add(last_workflow_execution_step)
         session.commit()
 
-    workflow_execution = session.query(WorkflowExecution).filter(WorkflowExecution.reana_id == reana_id).first()
+    try:
+        workflow_execution = session.query(WorkflowExecution).filter(WorkflowExecution.reana_id == reana_id).first()
+    except SQLAlchemyError as e:
+        session.rollback()
+        return
+
     workflow_execution.end_time = datetime.utcnow()
     session.add(workflow_execution)
     session.commit()
@@ -347,16 +419,25 @@ async def delete_workflow_execution(
         )
 
     deleted_workflows_id = []
-    if registry_id:
-        workflows = session.query(WorkflowExecution).filter(
-            WorkflowExecution.registry_id == registry_id,
-            WorkflowExecution.group == user.group
-        ).all()
-    else:
-        workflows = session.query(WorkflowExecution).filter(
-            WorkflowExecution.reana_name == reana_name,
-            WorkflowExecution.group == user.group
-        ).all()
+    try:
+        if registry_id:
+            workflows = session.query(WorkflowExecution).filter(
+                WorkflowExecution.registry_id == registry_id,
+                WorkflowExecution.group == user.group
+            ).all()
+        else:
+            workflows = session.query(WorkflowExecution).filter(
+                WorkflowExecution.reana_name == reana_name,
+                WorkflowExecution.group == user.group
+            ).all()
+    except SQLAlchemyError as e:
+        session.rollback()
+        return Response(
+            success=False,
+            message=f"Database error: {str(e)}",
+            error_code=500,
+            data={}
+        )
 
     for w in workflows:
         try:
@@ -371,6 +452,7 @@ async def delete_workflow_execution(
             session.delete(w)
             session.commit()
         except Exception as e:
+            session.rollback()
             return Response(
                 success=False,
                 message="Problem while deleting REANA workflow: " + str(e),
@@ -398,9 +480,18 @@ async def download_outputs(
     execution_id: int,
     user: User = Depends(authenticate_user)
 ):
-    workflow_execution = session.query(WorkflowExecution).filter(
-        WorkflowExecution.id == execution
-    ).first()
+    try:
+        workflow_execution = session.query(WorkflowExecution).filter(
+            WorkflowExecution.id == execution_id
+        ).first()
+    except SQLAlchemyError as e:
+        session.rollback()
+        return Response(
+            success=False,
+            message=f"Database error: {str(e)}",
+            error_code=500,
+            data={}
+        )
 
     if workflow_execution is None:
         return Response(
@@ -445,9 +536,18 @@ async def download_inputs(
     execution_id: int,
     user: User = Depends(authenticate_user)
 ):
-    workflow_execution = session.query(WorkflowExecution).filter(
-        WorkflowExecution.id == execution_id
-    ).first()
+    try:
+        workflow_execution = session.query(WorkflowExecution).filter(
+            WorkflowExecution.id == execution_id
+        ).first()
+    except SQLAlchemyError as e:
+        session.rollback()
+        return Response(
+            success=False,
+            message=f"Database error: {str(e)}",
+            error_code=500,
+            data={}
+        )
 
     if workflow_execution is None:
         return Response(
