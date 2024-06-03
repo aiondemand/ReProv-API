@@ -473,7 +473,7 @@ async def delete_workflow_execution(
 
 
 @router.get(
-    "/outputs/",
+    "/outputs/{execution_id}",
     description="Download outputs of an executed workflow",
 )
 async def download_outputs(
@@ -529,7 +529,7 @@ async def download_outputs(
 
 
 @router.get(
-    "/inputs/",
+    "/inputs/{execution_id}",
     description="Download inputs of an executed workflow",
 )
 async def download_inputs(

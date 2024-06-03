@@ -22,7 +22,7 @@ router = APIRouter()
 
 
 @router.get(
-    "/capture/",
+    "/capture/{execution_id}",
     description="Capture provenance for workflow with specific execution_id",
 )
 async def track_provenance(
@@ -314,7 +314,7 @@ async def track_provenance(
 
 
 @router.get(
-    "/draw/",
+    "/draw/{execution_id}",
     description="Create a graphical representation of provenance for workflow with specific execution id",
 )
 async def draw_provenance(
@@ -487,7 +487,7 @@ async def draw_provenance(
         activity=workflow_activity.name
     )
 
-    png_name = f"{workflow_execution.reana_name}:{workflow_execution.run_number}-provenance.png"
+    png_name = f"{workflow_execution.reana_name}:{workflow_execution.reana_run_number}-provenance.png"
     prov_to_dot(doc).write_png(png_name)
 
     def _delete_png_file():

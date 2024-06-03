@@ -12,3 +12,4 @@ pymysql
 cryptography
 python-keycloak==3.6.0
 docker
+graphviz
